@@ -29,3 +29,9 @@ O modelo de imagem insistia em tombar o caminhão para a esquerda. O quadro inic
 espelhando só o caminhão branco (ImageMagick) e pedindo à IA apenas para reescrever o texto e apagar
 a emenda (job `7339c63b-7598-4b3a-a953-a372b3a7bc39`). Take usado: `2859b4fe-78b3-45ab-a689-d84a52f0469e`
 (alternativo limpo: `93ee0c65-39e4-45fb-a12e-7e6e25bd4edb`).
+
+## Formato "tipografia cinética" (loop)
+Gancho de 2s (take v2 tombando) → cartelas "precisa de clientes B2B?" / "posicionamento." /
+"conteúdo." / "campanhas." / "chama no WhatsApp." + logo → volta ao gancho (loop). 7,9s, sem música
+(adicionar áudio em alta pelo próprio Instagram). Script: `reels/04_kinetic.py`.
+Vídeo: https://d2ol7oe51mr4n9.cloudfront.net/user_3J1UKLoplgfnd1vkzDdKaReF2nE/1bbef00d-adbc-437e-8daa-623958b1ddae.mp4
