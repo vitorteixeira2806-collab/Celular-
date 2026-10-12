@@ -6,7 +6,7 @@ Não é falta de esforço. Às vezes, sua empresa só precisa do parceiro certo 
 
 A Engrenza faz marketing para indústrias e empresas B2B: posicionamento, conteúdo e campanhas pensados para quem vende para outras empresas.
 
-👉 Quer conversar sobre o momento da sua empresa? Chama a gente no WhatsApp: [LINK_WHATSAPP]
+👉 Quer conversar sobre o momento da sua empresa? Chama a gente no WhatsApp: wa.me/5511985180707
 🌐 engrenza.com.br
 
 #marketingindustrial #marketingb2b #industria #b2b #engrenza
