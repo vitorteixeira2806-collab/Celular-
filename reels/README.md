@@ -35,3 +35,9 @@ Gancho de 2s (take v2 tombando) → cartelas "precisa de clientes B2B?" / "posic
 "conteúdo." / "campanhas." / "chama no WhatsApp." + logo → volta ao gancho (loop). 7,9s, sem música
 (adicionar áudio em alta pelo próprio Instagram). Script: `reels/04_kinetic.py`.
 Vídeo: https://d2ol7oe51mr4n9.cloudfront.net/user_3J1UKLoplgfnd1vkzDdKaReF2nE/1bbef00d-adbc-437e-8daa-623958b1ddae.mp4
+
+## Formato "precisa de um site?" (Remotion)
+Remontagem do Reels de referência (bolinha na bancada + cartelas + loop) com os tempos exatos do
+original, em duas paletas (Engrenza e verde do original). Projeto, textos editáveis e checagem
+automática em `remotion/` (veja `remotion/README.md`). Vídeos: `out/reels-engrenza.mp4` e
+`out/reels-original.mp4`.

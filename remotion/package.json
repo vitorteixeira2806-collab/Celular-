@@ -1,0 +1,24 @@
+{
+  "name": "engrenza-reels-remotion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "node scripts/render.mjs",
+    "check": "python3 scripts/check.py"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.527",
+    "@remotion/cli": "4.0.527",
+    "@remotion/layout-utils": "4.0.527",
+    "@remotion/renderer": "4.0.527",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.527"
+  },
+  "devDependencies": {
+    "@fontsource/inter-tight": "5.1.0",
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}
