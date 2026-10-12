@@ -60,7 +60,7 @@ def drawtext(textfile, font, size, x, y, t0, t1, fade=0.3, shadow=True):
     s = (f"drawtext=fontfile='{esc(font)}':textfile='{esc(textfile)}':fontsize={size}:"
          f"fontcolor=white:x={x}:y={y}:alpha='{alpha}'")
     if shadow:
-        s += ":shadowcolor=black@0.65:shadowx=0:shadowy=3"
+        s += ":shadowcolor=black@0.8:shadowx=0:shadowy=4:borderw=2:bordercolor=black@0.35"
     return s
 
 
@@ -75,6 +75,11 @@ def build(take, dst, with_text):
         v0 = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
               f"fps={FPS},setsar=1,format=yuv420p")
         if with_text:
+            # degradê escuro no topo enquanto a legenda está na tela (contraste sobre céu claro)
+            v0 += (f"[base];color=black:s={W}x760:r={FPS}:d={dur},format=rgba,"
+                   f"geq=r=0:g=0:b=0:a='150*pow(1-Y/H\\,1.4)',"
+                   f"fade=t=in:st=0.2:d=0.3:alpha=1,fade=t=out:st=2.8:d=0.4:alpha=1[grad];"
+                   f"[base][grad]overlay=0:0:shortest=1,format=yuv420p")
             for i, line in enumerate(CAPTION):
                 f = write_txt(tmp, f"cap{i}.txt", line)
                 v0 += "," + drawtext(f, semibold, CAP_SIZE, CAP_X, CAP_Y + i * CAP_LEAD, 0.3, 3.0)
