@@ -1,3 +1,4 @@
 .env
 out/frames/raw-*.png
 out/**/*.json
+__pycache__/
