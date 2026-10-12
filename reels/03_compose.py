@@ -81,8 +81,8 @@ def build(take, dst, with_text):
         v0 += "[take]"
 
         # --- cartela: fundo #080B10, frase, logo PNG oficial com fade, site
-        logo_w = 560
         lw, lh = Image.open(LOGO).size
+        logo_w = min(560, lw)  # nunca amplia o PNG oficial
         logo_h = round(logo_w * lh / lw)
         tag_size, tag_lead = 66, 84
         tag_y0 = 620

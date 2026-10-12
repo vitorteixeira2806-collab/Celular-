@@ -11,7 +11,8 @@ from PIL import Image, ImageOps
 import fal
 
 ROOT = fal.ROOT
-LOGO = ROOT / "assets" / "logo-engrenza.png"
+# referência para a IA: logo oficial sobre fundo escuro (o PNG transparente tem texto branco)
+LOGO = ROOT / "assets" / "logo-engrenza-original.jpg"
 OUT = ROOT / "out" / "frames"
 
 PROMPT = (
@@ -22,7 +23,9 @@ PROMPT = (
     "of its cargo box is dangerously tilted, balancing on its two left wheels, its right wheels in the air. "
     "In the right lane, a matte black box truck is pulling in, approaching the white truck. "
     "The matte black truck's cargo box carries the company logo from the reference image, reproduced exactly: "
-    "white wordmark \"ENGRENZA\" with the blue slanted-bars symbol, same proportions, colors and letterforms. "
+    "the symbol of three slanted parallelogram bars (top and bottom off-white, middle one blue) on the left, "
+    "the bold white wordmark \"ENGRENZA\" and the smaller line \"MARKETING INDUSTRIAL\" below it, "
+    "same proportions, colors and letterforms, painted large on the black cargo box. "
     "Both texts sharp and legible. Concrete median, other distant cars, urban skyline and river embankment. "
     "No people visible, no crash, no debris."
 )
