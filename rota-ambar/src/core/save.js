@@ -1,6 +1,7 @@
 // Progresso e opções em localStorage.
 const KEY = 'rota-ambar-v1';
 const GHOST = 'rota-ambar-ghost-';
+const BONUS = 1000000;
 
 const DEFAULTS = () => ({
   money: 1500,
@@ -27,6 +28,8 @@ export function loadSave() {
       d.options.btnSize = Math.min(1.4, Math.max(0.9, d.options.btnSize || 1));
     }
   } catch (e) { /* save corrompido: usa padrão */ }
+  // bônus único pedido pelo dono do jogo: A$ 1.000.000 (vale para saves novos e antigos)
+  if (!d.bonus1m) { d.money += BONUS; d.bonus1m = true; }
   return d;
 }
 
