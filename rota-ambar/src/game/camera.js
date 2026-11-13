@@ -28,8 +28,12 @@ export class ChaseCamera {
 
     if (this.orbit) {
       const o = this.orbit;
-      cam.position.set(v.x + Math.sin(o.angle) * o.dist, v.y + o.height, v.z + Math.cos(o.angle) * o.dist);
-      cam.lookAt(v.x, v.y + 0.7, v.z);
+      if (o.spin) o.angle += o.spin * dt;
+      const sa = Math.sin(o.angle), ca = Math.cos(o.angle), sh = o.shift || 0;
+      cam.position.set(v.x + sa * o.dist - ca * sh, v.y + o.height, v.z + ca * o.dist + sa * sh);
+      cam.rotation.order = 'XYZ';
+      // shift desloca o carro para a direita da tela (abre espaço para o painel)
+      cam.lookAt(v.x - ca * sh, v.y + 0.7, v.z + sa * sh);
       this.first = true;
       return;
     }

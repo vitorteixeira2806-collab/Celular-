@@ -9,6 +9,7 @@ import { CarView } from '../vehicles/carview.js';
 import { carById, effectiveSpec } from '../vehicles/cars.js';
 import { ChaseCamera } from './camera.js';
 import { Input } from '../ui/input.js';
+import { AudioSys } from '../audio/audio.js';
 import { TouchControls } from '../ui/touch.js';
 import { loadSave, persist } from '../core/save.js';
 import { requestWake, releaseWake, lockLandscape, vibrate, isPortrait } from '../core/platform.js';
@@ -58,8 +59,13 @@ export class Game {
     const m = this.map;
     this.player.place(m.GX[m.AV_I] + 4.5, m.GZ[m.AV_J + 1] - 50, Math.PI, m);
     this.player.onImpact = (imp, lx, lz, nx, nz) => this.onPlayerImpact(imp, lx, lz, nx, nz);
-    this.player.onLand = (imp) => { if (imp > 5) { this.cam.kick(clamp(imp * 0.03, 0, 0.5)); vibrate(30, this.opt.vibrate); } };
+    this.player.onLand = (imp) => { if (imp > 5) { this.cam.kick(clamp(imp * 0.03, 0, 0.5)); vibrate(30, this.opt.vibrate); this.sfx('land', imp / 16); } };
 
+    this.audio = new AudioSys(this);
+    // farol real do jogador (só em qualidade média/alta, à noite)
+    this.spot = new THREE.SpotLight(0xfff0d0, 0, 70, 0.55, 0.7, 1.1);
+    this.spot.visible = false;
+    this.scene.add(this.spot, this.spot.target);
     this.input = new Input(this.opt);
     this.touch = new TouchControls(els.touch, this.input, this.opt);
     this.input.onKey = (code) => this.onKey(code);
@@ -125,6 +131,10 @@ export class Game {
     this.gestured = true;
     requestWake();
     lockLandscape();
+    this.audio.init();
+    // iOS só libera o áudio em gestos "completos": tenta de novo a cada toque
+    for (const ev of ['pointerdown', 'touchend', 'click']) addEventListener(ev, () => this.audio.resume(), { passive: true });
+    if (this.opt.control === 'tilt') this.input.enableTilt().then((ok) => { if (!ok) { this.opt.control = 'buttons'; this.touch.apply(); } });
   }
 
   setState(s) {
@@ -146,11 +156,12 @@ export class Game {
       this.hiddenPause = true;
       persist(this.save, true);
       releaseWake();
+      this.audio.suspend();
       if (this.onAutoPause) this.onAutoPause();
     } else {
       this.hiddenPause = false;
       this.last = 0;
-      if (this.gestured) requestWake();
+      if (this.gestured) { requestWake(); this.audio.resume(); }
     }
   }
 
@@ -168,7 +179,11 @@ export class Game {
   }
 
   onKey(code) {
-    if (code === 'KeyC') this.cam.cycle();
+    const ui = this.ui, driving = (this.state === 'roam' || this.state === 'race') && !this.paused;
+    if (code === 'KeyC' && driving) this.cam.cycle();
+    else if (code === 'KeyR' && driving) this.resetCar();
+    else if (code === 'KeyM' && ui) { if (ui.screen === 'map') ui.resume(); else if (driving) ui.openMap(); }
+    else if ((code === 'Escape' || code === 'KeyP') && ui) { if (ui.screen === 'pause' || ui.screen === 'map') ui.resume(); else if (driving) ui.openPause(); }
   }
 
   onPlayerImpact(imp, lx, lz, nx, nz) {
@@ -176,6 +191,7 @@ export class Game {
     const s = clamp(imp / 22, 0, 1);
     this.cam.kick(s * 0.6);
     vibrate(Math.round(20 + s * 80), this.opt.vibrate);
+    this.sfx('crash', s);
     if (imp > 5) this.view.dent(lx, lz, nx, nz, 0.05 + s * 0.22);
   }
 
@@ -203,9 +219,11 @@ export class Game {
     const p = this.player;
     const drive = this.state === 'roam' || (this.state === 'race' && this.race && this.race.state === 'run');
     if (this.autopilot && (drive || this.state === 'title')) this.autopilot.update(dt, this.bodies, true);
-    else if (drive) this.input.read(p.in);
+    else if (drive) { this.input.read(p.in); this.steerAssist(); }
     else { p.in.throttle = 0; p.in.brake = 1; p.in.steer = 0; p.in.handbrake = true; p.in.nitro = false; }
     p.step(dt, this.map);
+    if (p.nitroOn && !this.wasNitro) { this.sfx('nitro'); vibrate([20, 30, 40], this.opt.vibrate); }
+    this.wasNitro = p.nitroOn;
 
     // corpos dinâmicos (jogador, rivais, polícia) e trânsito
     const dyn = this.dyn, bodies = this.bodies, tc = this.traffic.cars;
@@ -255,7 +273,26 @@ export class Game {
     const gy = p.grounded ? p.y : map.heightAt(p.x, p.z);
     f.shadow(p.x, gy, p.z, p.yaw, p.grounded ? p.pitch : 0, p.halfLen, p.halfWid, clamp(1 - (p.y - gy) * 0.07, 0.45, 1));
     f.carLights(p, this.view.dims, night, p.in.brake > 0 && p.vf > 1);
+    if (p.nitroOn) {
+      const sn = Math.sin(p.yaw), cs = Math.cos(p.yaw), hl = p.halfLen + 0.25;
+      for (const sx of [-0.35, 0.35]) f.glow(p.x - sn * hl + cs * sx, p.y + 0.35, p.z - cs * hl - sn * sx, 0.5 + Math.random() * 0.25, 0x58b8ff, 1.2);
+    }
     f.end();
+    // farol real
+    const spotOn = this.q.spot && night > 0.35 && this.state !== 'garage';
+    if (this.spot.visible !== spotOn) this.spot.visible = spotOn;
+    if (spotOn) {
+      const sn = Math.sin(p.yaw), cs = Math.cos(p.yaw);
+      this.spot.intensity = 260 * night;
+      this.spot.position.set(p.x + sn * 1.2, p.y + 1.1, p.z + cs * 1.2);
+      this.spot.target.position.set(p.x + sn * 22, p.y - 0.4, p.z + cs * 22);
+      this.spot.target.updateMatrixWorld();
+    }
+    this.audio.update(dt);
+    if (this.opt.showFps && (this.frameNo & 15) === 0) {
+      const ri = this.renderer.info.render;
+      this.hud.el.fps.textContent = `${Math.round(this.fps)} fps · ${ri.calls} dc · ${(ri.triangles / 1000).toFixed(0)}k tri · q${this.opt.quality === 'auto' ? this.autoLevel : this.opt.quality}`;
+    }
     this.autoQuality(dt);
     if (this.state === 'roam' || this.state === 'race') this.hud.update(dt);
     this.renderer.render(this.scene, this.cam.cam);

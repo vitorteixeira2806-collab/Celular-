@@ -24,6 +24,7 @@ export function loadSave() {
       const s = JSON.parse(raw);
       Object.assign(d, s, { options: Object.assign(d.options, s.options || {}), stats: Object.assign(d.stats, s.stats || {}) });
       if (!d.owned[d.car]) d.car = Object.keys(d.owned)[0] || 'faisca';
+      d.options.btnSize = Math.min(1.4, Math.max(0.9, d.options.btnSize || 1));
     }
   } catch (e) { /* save corrompido: usa padrão */ }
   return d;

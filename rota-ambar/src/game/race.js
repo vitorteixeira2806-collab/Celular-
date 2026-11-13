@@ -246,8 +246,7 @@ export class Race {
       let t = r.time;
       if (!r.fin) {
         const prog = clamp(r.ai.progress, 1, totalD);
-        t = this.finishTime * (totalD / prog) + 0.5;
-        if (t <= this.finishTime) t = this.finishTime + 0.5;
+        t = this.finishTime + 0.5 + (totalD - prog) / Math.max(14, prog / Math.max(1, this.finishTime));
       }
       return { name: r.name, time: t, me: false };
     });

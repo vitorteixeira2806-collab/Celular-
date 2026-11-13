@@ -30,3 +30,10 @@ Basta enviar os arquivos da raiz.
   `+551139310606`, `vendas@artecgal.com.br` e `Rua Sebastião Morais` no `index.html`.
 - **Cores**: variáveis no topo de `css/style.css` (`--primary`, `--primary-2`, `--bg`).
 - **Fotos**: `assets/img/README.md`.
+
+---
+
+## Rota Âmbar (jogo)
+
+O jogo de corrida 3D para celular fica em [`rota-ambar/`](rota-ambar/README.md), com projeto,
+build e deploy próprios (independentes desta landing page).
