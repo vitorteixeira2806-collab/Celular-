@@ -215,7 +215,9 @@ export function generateMap() {
       hs[i] = s / c;
     }
   }
-  hs[0] = hs[hs.length - 1] = 0;
+  // a pista só começa a subir depois da faixa plana do anel
+  const flatEnd = () => { for (let i = 0; i < hs.length; i++) if (mpts[i].z > -650) hs[i] = 0; };
+  flatEnd();
   // limita a inclinação (~13%) e suaviza de novo
   const dsOf = (i) => Math.hypot(mpts[i].x - mpts[i - 1].x, mpts[i].z - mpts[i - 1].z);
   for (let i = 1; i < hs.length; i++) hs[i] = Math.min(hs[i], hs[i - 1] + 0.13 * dsOf(i));
@@ -224,6 +226,7 @@ export function generateMap() {
     const o = hs.slice();
     for (let i = 1; i < hs.length - 1; i++) hs[i] = (o[i - 1] + o[i] * 2 + o[i + 1]) / 4;
   }
+  flatEnd();
   mpts.forEach((p, i) => { p.y = hs[i]; });
   const mountainEdge = addEdge(mA, mB, 'mountain', mpts);
   // addEdge subdivide: guardamos a polilinha final
@@ -603,10 +606,7 @@ export function generateMap() {
   }
 
   // vegetação fora da malha (dentro do anel) e nas serras
-  const nearRoad = (x, z, pad) => {
-    const ne = nearestEdge(x, z);
-    return ne && ne.dist < ne.edge.width / 2 + pad;
-  };
+  const nearRoad = (x, z, pad) => roadClearance(x, z) < pad;
   for (let x = WORLD.x0 + 20; x < WORLD.x1 - 20; x += 23) {
     for (let z = WORLD.z0 + 20; z < 436; z += 23) {
       const jx = x + (hash2(x, z) - 0.5) * 18, jz = z + (hash2(z + 99, x - 7) - 0.5) * 18;
@@ -631,6 +631,20 @@ export function generateMap() {
     const tx = P.x + (dz / l) * 22, tz = P.z - (dx / l) * 22;
     addProp('tower', tx, tz, { y: groundBase(tx, tz) });
     circles.push([tx, tz, 2.5]);
+  }
+
+  // distância até a borda da via mais próxima (negativa = sobre a pista)
+  function roadClearance(x, z) {
+    const l = segGrid.get(Math.floor(x / SG) * 4096 + Math.floor(z / SG));
+    if (!l) return 1e9;
+    let best = 1e9;
+    for (let q = 0; q < l.length; q += 2) {
+      const e = edges[l[q]], i = l[q + 1];
+      const a = e.pts[i], b = e.pts[i + 1];
+      const d = Math.sqrt(segDist2(x, z, a.x, a.z, b.x, b.z, _sd)) - e.width / 2;
+      if (d < best) best = d;
+    }
+    return best;
   }
 
   function nearestNode(x, z, filter) {
@@ -690,11 +704,9 @@ export function generateMap() {
   }
 
   // tipo de piso: 0 pista, 1 calçada/pátio, 2 grama/terra, 3 areia, 4 água
-  const _se = {};
   function surfaceAt(x, z, y) {
     if (y < WATER_Y - 0.25) return 4;
-    const ne = nearestEdge(x, z, _se);
-    if (ne && ne.dist < ne.edge.width / 2 + 0.8) return 0;
+    if (roadClearance(x, z) < 0.8) return 0;
     if (z > 440) return inPort(x, z) ? 1 : 3;
     if (x > GX[0] - 6 && x < GX[NX - 1] + 6 && z > GZ[0] - 6 && z < RZ1) {
       return 1;
@@ -816,7 +828,7 @@ export function generateMap() {
   return {
     nodes, edges, blocks, buildings, props, ramps, boxes, circles, chunks, GX, GZ, NX, NZ, AV_I, AV_J, PORT, garage,
     mountainEdge, hwX, hwZ,
-    heightAt, groundBase, baseHill, mountainInfo, nearestEdge, nearestNode, pointOnEdge, colCell, colGet, lineOfSight, surfaceAt,
+    heightAt, groundBase, baseHill, mountainInfo, nearestEdge, roadClearance, nearestNode, pointOnEdge, colCell, colGet, lineOfSight, surfaceAt,
     findRoute, routePoints, inPort, edgeDir,
     chunkKey: ck,
   };

@@ -70,6 +70,7 @@ export class Game {
     this.traffic.setDensity(this.opt.traffic);
     this.dyn = []; this.bodies = [];
     this.camDir = { x: 0, z: 1 };
+    this.initModes();
     this.resize();
     addEventListener('resize', () => this.resize());
     addEventListener('orientationchange', () => setTimeout(() => this.resize(), 250));
@@ -200,7 +201,9 @@ export class Game {
   step(dt) {
     this.time += dt;
     const p = this.player;
-    if (this.state === 'roam' || this.state === 'race') this.input.read(p.in);
+    const drive = this.state === 'roam' || (this.state === 'race' && this.race && this.race.state === 'run');
+    if (this.autopilot && (drive || this.state === 'title')) this.autopilot.update(dt, this.bodies, true);
+    else if (drive) this.input.read(p.in);
     else { p.in.throttle = 0; p.in.brake = 1; p.in.steer = 0; p.in.handbrake = true; p.in.nitro = false; }
     p.step(dt, this.map);
 
@@ -224,10 +227,6 @@ export class Game {
     }
   }
 
-  // ganchos preenchidos pelos modos de jogo (rivais, polícia)
-  collectDynamics() {}
-  stepSystems() {}
-  drawSystems() {}
 
   render(dt) {
     const p = this.player;
@@ -251,6 +250,7 @@ export class Game {
     f.carLights(p, this.view.dims, night, p.in.brake > 0 && p.vf > 1);
     f.end();
     this.autoQuality(dt);
+    if (this.state === 'roam' || this.state === 'race') this.hud.update(dt);
     this.renderer.render(this.scene, this.cam.cam);
   }
 }

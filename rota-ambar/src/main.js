@@ -1,5 +1,6 @@
 import './style.css';
 import { Game } from './game/game.js';
+import './game/modes.js';
 import { blockGestures } from './core/platform.js';
 
 blockGestures();

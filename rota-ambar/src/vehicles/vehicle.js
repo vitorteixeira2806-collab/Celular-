@@ -85,7 +85,7 @@ export class Vehicle {
         this.drift = Math.max(0, this.drift - dt * (slipA > 0.2 && thr > 0.4 ? 0.55 : 2.4));
       }
       const aLat = 11.5 * S.grip * gm;
-      const yrMax = (aLat / Math.max(sp, 5)) * (1.1 + this.drift * 0.95);
+      const yrMax = (aLat / Math.max(sp, 5)) * (1.22 + this.drift * 0.9);
       yr = clamp(yr, -yrMax, yrMax);
       this.yawRate = damp(this.yawRate, yr, 10, dt);
       if (sp > 3) this.yawRate -= Math.sign(vf) * Math.atan2(vl, sp) * (1.7 - this.drift * 1.2) * 3 * dt;
