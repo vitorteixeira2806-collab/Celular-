@@ -251,7 +251,9 @@ G.fireGun = function () {
     if (dot > bestDot) { bestDot = dot; tgt = [ex / l, ey / l, ez / l]; }
   }
   if (tgt) { dx = lerp(dx, tgt[0], 0.75); dy = lerp(dy, tgt[1], 0.75); dz = lerp(dz, tgt[2], 0.75); }
-  const mx = me.x + Math.sin(me.yaw) * 0.55 - Math.cos(me.yaw) * 0.2, my = me.y + 1.42 + f.pitch * 0.4, mz = me.z + Math.cos(me.yaw) * 0.55 + Math.sin(me.yaw) * 0.2;
+  // o rastro sai da boca do cano (posição calculada na pose do personagem)
+  const mx = me.mx || me.x, my = me.my || me.y + 1.4, mz = me.mz || me.z;
+  this.fxp.emit(mx - Math.cos(me.yaw) * 0.12, my, mz + Math.sin(me.yaw) * 0.12, -Math.cos(me.yaw) * 2.2, 2.4, Math.sin(me.yaw) * 2.2, 0.45, 0.07, 0, 1, 0.75, 0.3, true); // cápsula ejetada
   let hitSomething = false;
   for (let k = 0; k < w.pellets; k++) {
     const sx = (Math.random() - 0.5) * 2 * w.spread, sy = (Math.random() - 0.5) * 2 * w.spread, sz = (Math.random() - 0.5) * 2 * w.spread;
@@ -355,7 +357,7 @@ G.spawnCop = function (u) {
   const p = newPerson('cop', makeLook(this.footRng, 'cop'));
   p.hp = 90 + this.police.stars * 12;
   p.x = v.x + Math.cos(v.yaw) * 1.7; p.z = v.z - Math.sin(v.yaw) * 1.7; p.y = this.map.heightAt(p.x, p.z); p.yaw = v.yaw;
-  p.fireT = 0.8 + this.footRng();
+  p.fireT = 0.8 + this.footRng(); p.weapon = this.police.stars >= 4 ? 1 : 0;
   f.cops.push(p);
   return p;
 };
@@ -397,7 +399,8 @@ G.footStep = function (dt) {
       me.speed = Math.hypot(me.vx, me.vz);
       const face = aiming ? f.yaw : me.speed > 0.4 ? Math.atan2(me.vx, me.vz) : me.yaw;
       me.yaw += angleDiff(face, me.yaw) * (1 - Math.exp(-(aiming ? 22 : 12) * dt));
-      me.aim = damp(me.aim, aiming ? 1 : 0, 14, dt); me.aimPitch = f.pitch;
+      me.aim = damp(me.aim, aiming && f.reloadT <= 0 ? 1 : 0, 14, dt); me.aimPitch = f.pitch;
+      me.weapon = f.w; me.reload = f.reloadT > 0 ? 1 - f.reloadT / WEAPONS[f.w].reload : 0;
       f.fireT = Math.max(0, f.fireT - dt); f.shotT += dt;
       if (f.reloadT > 0) { f.reloadT -= dt; if (f.reloadT <= 0) f.ammo[f.w] = WEAPONS[f.w].mag; }
       if (inp.fire) this.fireGun();
@@ -445,7 +448,7 @@ G.footStep = function (dt) {
           const acc = clamp(0.5 - d * 0.012 + P.stars * 0.03 - (me.speed > 3 ? 0.2 : 0), 0.06, 0.6);
           const hit = Math.random() < acc;
           const ex = me.x + (hit ? 0 : (Math.random() - 0.5) * 3), ey = me.y + (hit ? 1.1 : 0.4 + Math.random() * 2), ez = me.z + (hit ? 0 : (Math.random() - 0.5) * 3);
-          this.addTracer(c.x + Math.sin(c.yaw) * 0.5, c.y + 1.42, c.z + Math.cos(c.yaw) * 0.5, ex, ey, ez);
+          this.addTracer(c.mx || c.x, c.my || c.y + 1.42, c.mz || c.z, ex, ey, ez);
           this.sfx('shot2', clamp(1 - d / 60, 0.15, 1));
           if (hit) this.hurtPlayer(4 + P.stars * 1.5);
         }
@@ -536,7 +539,7 @@ G.footDraw = function (fl, night) {
     fl.glow(b.x, b.y + b.t * 2, b.z, 1.5 + b.t * 5, 0xfff0c0, 2.5 * k);
   }
   // clarão do cano
-  const flash = (p) => { if (p.recoil > 0.7) fl.glow(p.x + Math.sin(p.yaw) * 0.75, p.y + 1.42, p.z + Math.cos(p.yaw) * 0.75, 0.38, 0xffd27a, 2); };
+  const flash = (p) => { if (p.recoil > 0.65 && p.mx) { fl.glow(p.mx, p.my, p.mz, p.weapon === 2 ? 0.6 : 0.36, 0xffd27a, 2.2); fl.glow(p.mx, p.my, p.mz, 0.14, 0xffffff, 3); } };
   if (f.on) flash(f.me);
   f.cops.forEach(flash);
   // rastros
