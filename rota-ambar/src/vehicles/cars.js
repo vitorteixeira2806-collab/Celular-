@@ -35,7 +35,7 @@ export const upgradeCost = (car, kind, level) => Math.round(((car.price || 3000)
 // cab = [base do vidro traseiro, início do teto, fim do teto, base do para-brisa] em fração do comprimento.
 const SILVER = 0xc6ccd4, GUN = 0x3b3f46, BLACKRIM = 0x17191c;
 const M = {
-  compact: { doors4: 1, len: 4.05, wid: 1.78, ride: 0.17, wr: 0.32, wb: 2.56, tailH: 0.96, deckH: 1.02, beltR: 0.93, beltF: 0.84, cowlH: 0.9, noseH: 0.69, roofH: 1.46, cab: [-0.455, -0.31, 0.05, 0.25], roofK: 0.76, noseT: 0.2, tailT: 0.1, spokes: 5, rim: SILVER, lip: 0.06 },
+  compact: { doors4: 1, len: 4.05, wid: 1.78, ride: 0.17, wr: 0.32, wb: 2.56, tailH: 0.96, deckH: 1.02, beltR: 0.93, beltF: 0.84, cowlH: 0.9, noseH: 0.69, roofH: 1.46, cab: [-0.455, -0.31, 0.05, 0.25], roofK: 0.76, noseT: 0.2, tailT: 0.1, spokes: 5, rim: SILVER },
   sedan: { doors4: 1, len: 4.6, wid: 1.84, ride: 0.17, wr: 0.33, wb: 2.75, tailH: 0.9, deckH: 0.97, beltR: 0.92, beltF: 0.84, cowlH: 0.9, noseH: 0.68, roofH: 1.41, cab: [-0.31, -0.19, 0.1, 0.27], roofK: 0.74, noseT: 0.2, tailT: 0.14, spokes: 7, rim: SILVER },
   muscle: { len: 4.85, wid: 1.95, ride: 0.16, wr: 0.36, wb: 2.86, tailH: 0.9, deckH: 0.99, beltR: 0.94, beltF: 0.86, cowlH: 0.93, noseH: 0.75, roofH: 1.31, cab: [-0.35, -0.18, 0.04, 0.19], roofK: 0.72, noseT: 0.13, tailT: 0.12, spokes: 5, rim: GUN, stripes: 0x101216, lip: 0.1, splitter: 1, wide: 1 },
   sport: { len: 4.45, wid: 1.93, ride: 0.13, wr: 0.345, wb: 2.62, tailH: 0.84, deckH: 0.9, beltR: 0.84, beltF: 0.76, cowlH: 0.83, noseH: 0.57, roofH: 1.22, cab: [-0.36, -0.17, 0.04, 0.21], roofK: 0.7, noseT: 0.24, tailT: 0.16, spokes: 6, rim: GUN, bar: 1, lip: 0.07, splitter: 1 },
@@ -155,7 +155,11 @@ export function carGeometry(model, opts = {}) {
     if (j === 1 && m.clad) return [D, TRIM];
     if (j <= 2) return opts.police && zm > cB && zm < cD ? [D, doorWhite] : [P, WHITE];
     // colunas escuras (teto "flutuante") e vidros laterais
-    if (j === 3) return zm > cA && zm < cD ? (zm > gA && zm < gD && Math.abs(zm - bp) > 0.06 ? [D, GLASS] : [D, TRIM]) : [P, WHITE];
+    if (j === 3) {
+      if (zm <= cA || zm >= cD) return [P, WHITE];
+      if (zm > gA && zm < gD && Math.abs(zm - bp) > 0.06) return [D, GLASS];
+      return zm < gA && !m.doors4 ? [P, WHITE] : [D, TRIM]; // cupês: coluna traseira na cor do carro
+    }
     if ((zm > cA && zm < cB) || (zm > cC && zm < cD)) return [D, GLASS];
     if (m.bed && zm < cA && j === 5) return [D, BED];
     return [P, WHITE];
@@ -181,23 +185,90 @@ export function carGeometry(model, opts = {}) {
     }
   }
 
-  // ---------- frente ----------
-  const wN = halfW(zf), ybN = botY(zf), ysN = beltY(zf), zN = zf + 0.012;
-  const fq = (x0, y0, x1, y1, col, zz) => { for (const sx of [1, -1]) quadDir(D, [x0 * sx, y0, zz], [x1 * sx, y0, zz], [x1 * sx, y1, zz], [x0 * sx, y1, zz], col, 0, 0, 1); };
-  fq(wN * 0.5, ysN - 0.17, wN * 0.985, ysN - 0.06, TRIM, zN);           // carcaça do farol
-  fq(wN * 0.54, ysN - 0.15, wN * 0.96, ysN - 0.085, HEAD, zN + 0.006);   // farol fino
-  fq(wN * 0.5, ysN - 0.05, wN * 0.985, ysN - 0.025, DRL, zN + 0.006);    // luz diurna
-  quadDir(D, [-wN * 0.46, ybN + 0.07, zN], [wN * 0.46, ybN + 0.07, zN], [wN * 0.4, ysN - 0.1, zN], [-wN * 0.4, ysN - 0.1, zN], TRIM, 0, 0, 1); // grade
-  fq(wN * 0.56, ybN + 0.06, wN * 0.92, ybN + 0.17, TRIM, zN);            // entradas de ar
+  // ---------- frente e traseira: cada modelo tem o seu desenho ----------
+  // coordenadas normalizadas no painel: u = 0 (centro) a 1 (borda), v = 0 (base) a 1 (topo)
+  const CHROME = C(0xb9c0c8), STEEL = C(0x8f979f), AMBER = C(0xffe2a0), REV = C(0xe6e6de), HOOK = C(0xc0392b);
+  const wN = halfW(zf), ybN = botY(zf), ytN = m.noseH - 0.03;
+  const wT = halfW(zr), ybT = botY(zr), ytT = m.tailH - 0.03;
+  const F = (u0, v0, u1, v1, col, lift = 0) => {
+    const z = zf + 0.012 + lift * 0.006, y0 = lerp(ybN, ytN, v0), y1 = lerp(ybN, ytN, v1);
+    for (const sx of [1, -1]) quadDir(D, [u0 * wN * sx, y0, z], [u1 * wN * sx, y0, z], [u1 * wN * sx, y1, z], [u0 * wN * sx, y1, z], col, 0, 0, 1);
+  };
+  const FC = (u, v0, v1, col, lift = 0, taper = 1) => {
+    const z = zf + 0.012 + lift * 0.006, y0 = lerp(ybN, ytN, v0), y1 = lerp(ybN, ytN, v1);
+    quadDir(D, [-u * wN, y0, z], [u * wN, y0, z], [u * wN * taper, y1, z], [-u * wN * taper, y1, z], col, 0, 0, 1);
+  };
+  const R = (u0, v0, u1, v1, col, lift = 0) => {
+    const z = zr - 0.012 - lift * 0.006, y0 = lerp(ybT, ytT, v0), y1 = lerp(ybT, ytT, v1);
+    for (const sx of [1, -1]) quadDir(D, [u0 * wT * sx, y0, z], [u1 * wT * sx, y0, z], [u1 * wT * sx, y1, z], [u0 * wT * sx, y1, z], col, 0, 0, -1);
+  };
+  const RC = (u, v0, v1, col, lift = 0, taper = 1) => {
+    const z = zr - 0.012 - lift * 0.006, y0 = lerp(ybT, ytT, v0), y1 = lerp(ybT, ytT, v1);
+    quadDir(D, [-u * wT, y0, z], [u * wT, y0, z], [u * wT * taper, y1, z], [-u * wT * taper, y1, z], col, 0, 0, -1);
+  };
+  const pipe = (x, y, hw, hh) => D.box(x - hw, y - hh, zr - 0.07, x + hw, y + hh, zr + 0.05, C(0x6b7078));
+  // prolonga o teto sobre o vidro traseiro
+  const roofSpoiler = () => P.box(-W * m.roofK * 0.84, m.roofH - 0.06, cB - 0.2, W * m.roofK * 0.84, m.roofH + 0.004, cB + 0.06, WHITE, { bottom: true });
+  const style = opts.police ? 'sedan' : model;
+  switch (style) {
+    case 'compact': // faróis altos e amigáveis, grade pequena, tomada de ar trapezoidal
+      F(0.5, 0.56, 0.96, 0.92, TRIM); F(0.55, 0.62, 0.92, 0.88, HEAD, 1); F(0.55, 0.57, 0.92, 0.6, DRL, 1);
+      FC(0.4, 0.74, 0.83, TRIM); FC(0.62, 0.07, 0.42, TRIM, 0, 0.8); F(0.7, 0.14, 0.88, 0.28, AMBER);
+      R(0.72, 0.48, 0.96, 0.95, TAIL); R(0.76, 0.5, 0.92, 0.58, REV, 1);
+      RC(0.3, 0.6, 0.64, TRIM); RC(0.24, 0.3, 0.46, PLATE); RC(0.86, 0, 0.2, TRIM, 0, 0.94);
+      pipe(-wT * 0.55, ybT + 0.07, 0.05, 0.035); roofSpoiler();
+      break;
+    case 'sedan': // faróis finos ligados por uma barra cromada
+      F(0.46, 0.64, 0.97, 0.86, TRIM); F(0.5, 0.7, 0.94, 0.81, HEAD, 1); F(0.5, 0.65, 0.94, 0.68, DRL, 1);
+      FC(0.46, 0.46, 0.86, TRIM); FC(0.46, 0.73, 0.77, CHROME, 1); FC(0.46, 0.56, 0.59, CHROME, 1);
+      FC(0.74, 0.05, 0.3, TRIM, 0, 0.9);
+      R(0.4, 0.6, 0.97, 0.84, TAIL); RC(0.4, 0.7, 0.74, CHROME, 1); R(0.44, 0.62, 0.6, 0.67, REV, 1);
+      RC(0.24, 0.32, 0.5, PLATE); RC(0.8, 0, 0.18, TRIM, 0, 0.92);
+      pipe(wT * 0.52, ybT + 0.07, 0.07, 0.035); pipe(-wT * 0.52, ybT + 0.07, 0.07, 0.035);
+      break;
+    case 'muscle': // grade larga e escura com dois faróis quadrados de cada lado; três barras verticais atrás
+      FC(0.97, 0.4, 0.92, TRIM); FC(0.97, 0.9, 0.94, CHROME, 1);
+      F(0.7, 0.52, 0.92, 0.82, HEAD, 1); F(0.44, 0.52, 0.64, 0.82, AMBER, 1);
+      FC(0.36, 0.5, 0.84, C(0x0b0c0e), 1); FC(0.62, 0.05, 0.3, TRIM, 0, 0.86);
+      RC(0.97, 0.48, 0.9, TRIM);
+      for (const u of [0.5, 0.65, 0.8]) R(u, 0.54, u + 0.1, 0.84, TAIL, 1);
+      RC(0.22, 0.56, 0.74, PLATE, 1); RC(0.84, 0, 0.26, TRIM, 0, 0.9);
+      pipe(wT * 0.56, ybT + 0.09, 0.09, 0.055); pipe(-wT * 0.56, ybT + 0.09, 0.09, 0.055);
+      break;
+    case 'sport': // nariz liso, lâminas de LED e três tomadas de ar; barra de luz inteira atrás
+      F(0.52, 0.6, 0.97, 0.86, TRIM); F(0.56, 0.76, 0.95, 0.82, DRL, 1); F(0.62, 0.63, 0.93, 0.72, HEAD, 1);
+      FC(0.28, 0.07, 0.46, TRIM, 0, 0.8); F(0.4, 0.07, 0.94, 0.42, TRIM);
+      RC(0.97, 0.7, 0.77, TAIL, 1); R(0.68, 0.58, 0.97, 0.86, TAIL); RC(0.66, 0.6, 0.68, TRIM);
+      RC(0.88, 0, 0.36, TRIM, 0, 0.9); RC(0.2, 0.4, 0.56, PLATE, 1);
+      pipe(0.1, ybT + 0.12, 0.06, 0.05); pipe(-0.1, ybT + 0.12, 0.06, 0.05);
+      break;
+    case 'super': // faróis verticais nos cantos, grandes entradas laterais; difusor com aletas e escapes centrais altos
+      F(0.74, 0.46, 0.95, 0.94, TRIM); F(0.78, 0.72, 0.92, 0.9, HEAD, 1); F(0.78, 0.5, 0.92, 0.66, DRL, 1);
+      F(0.28, 0.06, 0.7, 0.62, TRIM); FC(0.2, 0.1, 0.24, TRIM);
+      RC(0.92, 0.34, 0.88, C(0x101113)); R(0.36, 0.76, 0.97, 0.83, TAIL, 1); R(0.62, 0.62, 0.97, 0.68, TAIL, 1);
+      RC(0.86, 0, 0.3, TRIM, 0, 0.92);
+      for (const u of [-0.5, -0.25, 0, 0.25, 0.5]) quadDir(D, [u * wT - 0.012, ybT, zr - 0.02], [u * wT + 0.012, ybT, zr - 0.02], [u * wT + 0.012, lerp(ybT, ytT, 0.28), zr - 0.02], [u * wT - 0.012, lerp(ybT, ytT, 0.28), zr - 0.02], STEEL, 0, 0, -1);
+      pipe(0.09, lerp(ybT, ytT, 0.56), 0.06, 0.05); pipe(-0.09, lerp(ybT, ytT, 0.56), 0.06, 0.05);
+      RC(0.18, 0.36, 0.46, PLATE, 1);
+      break;
+    case 'suv': // grade alta com frisos cromados, faróis divididos e protetor inferior
+      FC(0.5, 0.3, 0.93, TRIM);
+      for (const v of [0.38, 0.52, 0.66, 0.8]) FC(0.46, v, v + 0.045, CHROME, 1);
+      F(0.54, 0.5, 0.97, 0.93, TRIM); F(0.58, 0.84, 0.95, 0.9, DRL, 1); F(0.6, 0.56, 0.94, 0.78, HEAD, 1);
+      F(0.64, 0.24, 0.9, 0.4, TRIM); FC(0.62, 0.02, 0.2, STEEL, 0, 0.9);
+      R(0.74, 0.42, 0.97, 0.95, TAIL); RC(0.74, 0.78, 0.83, TAIL, 1); R(0.78, 0.44, 0.93, 0.52, REV, 1);
+      RC(0.22, 0.5, 0.66, PLATE); RC(0.62, 0.02, 0.17, STEEL, 0, 0.9);
+      pipe(wT * 0.6, ybT + 0.08, 0.06, 0.04); pipe(-wT * 0.6, ybT + 0.08, 0.06, 0.04); roofSpoiler();
+      break;
+    default: // picape: grade retangular com moldura cromada, faróis empilhados e para-choques de aço
+      FC(0.56, 0.26, 0.95, CHROME); FC(0.5, 0.32, 0.89, TRIM, 1); FC(0.5, 0.56, 0.65, CHROME, 2);
+      F(0.6, 0.48, 0.98, 0.94, TRIM); F(0.64, 0.72, 0.94, 0.9, HEAD, 1); F(0.64, 0.52, 0.94, 0.68, AMBER, 1);
+      FC(0.99, 0.02, 0.22, STEEL); F(0.28, 0.06, 0.37, 0.17, HOOK, 1);
+      R(0.8, 0.3, 0.97, 0.95, TAIL); R(0.83, 0.32, 0.94, 0.42, REV, 1);
+      RC(0.22, 0.74, 0.84, TRIM); RC(0.99, 0, 0.2, STEEL); RC(0.2, 0.04, 0.16, PLATE, 1);
+      pipe(-wT * 0.66, ybT - 0.02, 0.05, 0.04);
+  }
   if (m.splitter) D.box(-wN * 1.0, ybN - 0.03, zf - 0.22, wN * 1.0, ybN + 0.025, zf + 0.07, TRIM, { bottom: true });
-  // ---------- traseira ----------
-  const wT = halfW(zr), ybT = botY(zr), ysT = beltY(zr), zT = zr - 0.012;
-  const rq = (x0, y0, x1, y1, col, zz) => { for (const sx of [1, -1]) quadDir(D, [x0 * sx, y0, zz], [x1 * sx, y0, zz], [x1 * sx, y1, zz], [x0 * sx, y1, zz], col, 0, 0, -1); };
-  rq(wT * 0.5, ysT - 0.16, wT * 0.985, ysT - 0.05, TAIL, zT);
-  if (m.bar) quadDir(D, [-wT * 0.5, ysT - 0.125, zT], [wT * 0.5, ysT - 0.125, zT], [wT * 0.5, ysT - 0.085, zT], [-wT * 0.5, ysT - 0.085, zT], TAIL, 0, 0, -1);
-  quadDir(D, [-0.26, ybT + 0.2, zT], [0.26, ybT + 0.2, zT], [0.26, ybT + 0.33, zT], [-0.26, ybT + 0.33, zT], PLATE, 0, 0, -1);
-  quadDir(D, [-wT * 0.8, ybT + 0.0, zT], [wT * 0.8, ybT + 0.0, zT], [wT * 0.74, ybT + 0.15, zT], [-wT * 0.74, ybT + 0.15, zT], TRIM, 0, 0, -1); // difusor
-  for (const sx of [1, -1]) D.box(sx * wT * 0.5 - 0.07, ybT + 0.03, zr - 0.06, sx * wT * 0.5 + 0.07, ybT + 0.11, zr + 0.05, C(0x6b7078));
 
   // ---------- faixas, retrovisores, aerofólio ----------
   if (m.stripes != null) {
