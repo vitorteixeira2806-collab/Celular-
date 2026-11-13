@@ -1,6 +1,7 @@
 // Modos de jogo sobre o núcleo: passeio livre com marcadores, corridas, contra o relógio e navegação.
 import { Game } from './game.js';
 import { Race } from './race.js';
+import { Police } from './police.js';
 import { buildEvents, chaseSpots, medalOf, MEDAL } from './events.js';
 import { makeBeam } from './markers.js';
 import { Hud } from '../ui/hud.js';
@@ -18,7 +19,7 @@ G.initModes = function () {
   this.events = buildEvents(map);
   this.chases = chaseSpots(map);
   this.hud = new Hud(this.els.hud, this);
-  this.race = null; this.police = null;
+  this.race = null; this.police = new Police(this);
   this.blips = []; this.routePts = null; this.waypoint = null; this.navT = 0; this.routeT = 0;
   this.spots = [];
   const addSpot = (type, x, z, color, data) => {

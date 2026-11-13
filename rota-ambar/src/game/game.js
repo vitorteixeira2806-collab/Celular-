@@ -217,8 +217,15 @@ export class Game {
     this.stepSystems(dt);
     this.traffic.step(dt, this.time, bodies, p, this.camDir);
     for (let i = 0; i < dyn.length; i++) {
-      for (let j = i + 1; j < dyn.length; j++) collideCars(dyn[i], dyn[j]);
-      for (let j = 0; j < tc.length; j++) if (tc[j].active) collideCars(dyn[i], tc[j]);
+      for (let j = i + 1; j < dyn.length; j++) {
+        const imp = collideCars(dyn[i], dyn[j]);
+        if (i === 0 && imp > 1) this.police.onPlayerHit(dyn[j], imp);
+      }
+      for (let j = 0; j < tc.length; j++) {
+        if (!tc[j].active) continue;
+        const imp = collideCars(dyn[i], tc[j]);
+        if (i === 0 && imp > 1) this.police.onPlayerHit(tc[j], imp);
+      }
     }
     for (let i = 0; i < tc.length; i++) {
       const c = tc[i];
