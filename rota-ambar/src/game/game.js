@@ -1,6 +1,7 @@
 // Núcleo do jogo: renderer, laço de física com passo fixo, estados e integração dos sistemas.
 import * as THREE from 'three';
 import { generateMap } from '../world/map.js';
+import { WorldView } from '../world/worldview.js';
 import { Vehicle } from '../vehicles/vehicle.js';
 import { CarView } from '../vehicles/carview.js';
 import { carById, effectiveSpec } from '../vehicles/cars.js';
@@ -12,6 +13,15 @@ import { requestWake, releaseWake, lockLandscape, vibrate, isPortrait } from '..
 import { clamp } from '../core/util.js';
 
 const STEP = 1 / 60;
+// escada de qualidade (0 = mais leve). cap = pixel ratio máximo (nunca acima de 2)
+const QUALITY = [
+  { cap: 1, scale: 0.75, radius: 2, propDist: 170, fogFar: 380, spot: false },
+  { cap: 1, scale: 1, radius: 2, propDist: 200, fogFar: 400, spot: false },
+  { cap: 1.25, scale: 1, radius: 3, propDist: 260, fogFar: 520, spot: false },
+  { cap: 1.5, scale: 1, radius: 3, propDist: 300, fogFar: 580, spot: true },
+  { cap: 1.75, scale: 1, radius: 4, propDist: 380, fogFar: 720, spot: true },
+  { cap: 2, scale: 1, radius: 4, propDist: 460, fogFar: 780, spot: true },
+];
 
 export class Game {
   constructor(els) {
@@ -29,6 +39,7 @@ export class Game {
     this.cam = new ChaseCamera(innerWidth / innerHeight);
     this.pixelScale = 1;
 
+    this.pixelCap = 2;
     this.hemi = new THREE.HemisphereLight(0xcfe4ff, 0x6b6558, 1.15);
     this.sun = new THREE.DirectionalLight(0xfff1d8, 1.6);
     this.sun.position.set(120, 200, 80);
@@ -61,14 +72,41 @@ export class Game {
   }
 
   initWorld() {
-    // provisório (etapa 1): chão plano
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ color: 0x4a5058 }));
-    g.rotation.x = -Math.PI / 2;
-    this.scene.add(g);
-    const grid = new THREE.GridHelper(2000, 200, 0xffb238, 0x7a8088);
-    grid.position.y = 0.02;
-    this.scene.add(grid);
-    this.scene.fog = new THREE.Fog(0x87b5d6, 150, 700);
+    this.world = new WorldView(this.scene, this.map, { hemi: this.hemi, sun: this.sun });
+    this.applyQuality();
+    this.world.preload(this.player.x, this.player.z);
+  }
+
+  // qualidade: nível manual (low/med/high) ou automático conforme o fps
+  applyQuality() {
+    const o = this.opt;
+    let lvl = o.quality;
+    if (lvl === 'auto') lvl = this.autoLevel == null ? (this.autoLevel = 3) : this.autoLevel;
+    else lvl = { low: 1, med: 3, high: 5 }[lvl];
+    const L = QUALITY[lvl];
+    this.q = L;
+    this.pixelScale = L.scale;
+    this.pixelCap = L.cap;
+    this.world.setQuality(L);
+    this.resize();
+  }
+
+  autoQuality(dt) {
+    if (this.opt.quality !== 'auto' || this.paused || this.world.loading) return;
+    const target = this.opt.battery ? 30 : 60;
+    this.aqT = (this.aqT || 0) + dt;
+    this.aqN = (this.aqN || 0) + 1;
+    if (this.aqT < 2.5) return;
+    const fps = this.aqN / this.aqT;
+    this.aqT = 0; this.aqN = 0;
+    this.aqCool = Math.max(0, (this.aqCool || 0) - 1);
+    if (fps < target * 0.8 && this.autoLevel > 0) {
+      this.autoLevel--; this.aqFail = this.autoLevel + 1; this.aqCool = 8; this.applyQuality();
+    } else if (fps > target * 0.96 && this.autoLevel < 5 && !this.aqCool) {
+      // só sobe se o nível acima não falhou recentemente
+      if (this.aqFail === this.autoLevel + 1) { this.aqStable = (this.aqStable || 0) + 1; if (this.aqStable < 10) return; this.aqStable = 0; }
+      this.autoLevel++; this.aqCool = 3; this.applyQuality();
+    }
   }
 
   start() { requestAnimationFrame(this.frame); }
@@ -114,7 +152,7 @@ export class Game {
     document.body.classList.toggle('portrait', portrait);
     this.portrait = portrait;
     if (portrait && this.onAutoPause && (this.state === 'roam' || this.state === 'race')) this.onAutoPause();
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2) * this.pixelScale);
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.pixelCap || 2, 2) * this.pixelScale);
     this.renderer.setSize(w, h, false);
     this.cam.cam.aspect = w / h;
     this.cam.cam.updateProjectionMatrix();
@@ -164,6 +202,8 @@ export class Game {
     const p = this.player;
     this.view.update(p, dt);
     this.cam.update(dt, p, this.map, this.view.dims, this.opt.shake);
+    this.world.update(dt, this.cam.cam, this.time, this.paused);
+    this.autoQuality(dt);
     this.renderer.render(this.scene, this.cam.cam);
   }
 }

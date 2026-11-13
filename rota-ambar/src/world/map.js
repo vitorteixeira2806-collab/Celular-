@@ -17,6 +17,11 @@ export const ROAD = {
   dock: { width: 12, lanes: 1, speed: 9 },
 };
 
+// geometria das faixas (compartilhada por render e trânsito)
+const SHOULDER = { street: 1.3, avenue: 1.0, highway: 1.6, coast: 1.6, mountain: 0.9, dock: 1.6 };
+export const laneWidth = (e) => (e.width / 2 - SHOULDER[e.type]) / e.lanes;
+export const laneCenter = (e, k) => (k + 0.5) * laneWidth(e) + 0.15;
+
 const PAL = {
   tower: [0x8fa3b8, 0x6f879e, 0x9aa7b0, 0xb7b2a6, 0x596b7d, 0xa3b5c2, 0x7d8a96, 0xc2b8a3, 0x4f6272],
   mid: [0xc9b79c, 0xb9a48a, 0xd8cdb8, 0xa9b0a3, 0xc4a78e, 0xbfc5cc, 0xd6b8a0],
@@ -277,8 +282,9 @@ export function generateMap() {
     if (z < -600) {
       const m = mountainInfo(x, z);
       if (m.d < 50) {
-        const flat = m.y - 0.5 * smoothstep(6, 10, m.d);
-        h = lerp(flat, h, smoothstep(24, 50, m.d));
+        // acostamento: cai 1.2 m entre 5 e 9 m do eixo e depois se funde ao morro
+        const sh = m.d < 5 ? 0 : m.d < 9 ? ((m.d - 5) / 4) * 1.2 : 1.2;
+        h = lerp(m.y - sh, h, smoothstep(20, 50, m.d));
       }
     }
     return h;
@@ -584,14 +590,14 @@ export function generateMap() {
       if (e.type === 'mountain') {
         addProp('post', P.x + P.nx * off, P.z + P.nz * off, { y: P.y });
         addProp('post', P.x - P.nx * off, P.z - P.nz * off, { y: P.y });
-        if (((s / step) | 0) % 3 === 0) addProp('lamp', P.x + P.nx * (off + 0.6), P.z + P.nz * (off + 0.6), { r: Math.atan2(-P.nx, -P.nz) + Math.PI, y: P.y });
+        if (((s / step) | 0) % 3 === 0) addProp('lamp', P.x + P.nx * (off + 0.6), P.z + P.nz * (off + 0.6), { r: Math.atan2(-P.nx, -P.nz), y: P.y });
       } else {
         const side = e.type === 'coast' ? -1 : 1;
         // lado externo do anel
         const ox = P.x + P.nx * off * side, oz = P.z + P.nz * off * side;
         const cxr = Math.abs(ox) > Math.abs(P.x) || Math.abs(oz) > Math.abs(P.z) ? side : -side;
         const lx = P.x + P.nx * off * cxr, lz = P.z + P.nz * off * cxr;
-        addProp('lamp', lx, lz, { r: Math.atan2(P.x - lx, P.z - lz) + Math.PI, big: 1 });
+        addProp('lamp', lx, lz, { r: Math.atan2(P.x - lx, P.z - lz), big: 1 });
       }
     }
   }

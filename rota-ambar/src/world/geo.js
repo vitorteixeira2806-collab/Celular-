@@ -54,6 +54,11 @@ export class Geo {
     this._v(c[0], c[1], c[2], nx, ny, nz, col, u1, v1);
     this._v(d[0], d[1], d[2], nx, ny, nz, col, u0, v1);
   }
+  // quad horizontal: corrige a ordem para a normal apontar para cima
+  up(a, b, c, d, col) {
+    const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+    if (ny >= 0) this.quad(a, b, c, d, col); else this.quad(d, c, b, a, col);
+  }
   // caixa alinhada aos eixos. o: {top, bottom, sides, uv (paredes com uv em metros), topCol}
   box(x0, y0, z0, x1, y1, z1, col, o = {}) {
     const uv = o.uv;
