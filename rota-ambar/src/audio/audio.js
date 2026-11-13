@@ -113,7 +113,7 @@ export class AudioSys {
   update(dt) {
     if (!this.ready) return;
     const g = this.g, p = g.player, t = this.ctx.currentTime;
-    const active = (g.state === 'roam' || g.state === 'race' || g.state === 'title') && !g.paused;
+    const active = (g.state === 'roam' || g.state === 'race' || g.state === 'title') && !g.paused && !(g.foot && g.foot.on);
     const k = PITCH[p.model] || 1;
     const f = (52 + p.rpm * 150) * k;
     this.eOsc[0].frequency.setTargetAtTime(f, t, 0.03);
@@ -169,6 +169,17 @@ export class AudioSys {
         break;
       }
       case 'land': this.tone(70, 0.2, 'sine', 0.4 * clamp(a, 0.2, 1), 0, 35); this.burst(0.15, 0.2, 'lowpass', 500); break;
+      case 'shot': { // a = índice da arma
+        const big = a === 2, smg = a === 1;
+        this.burst(big ? 0.32 : smg ? 0.1 : 0.18, big ? 0.55 : smg ? 0.3 : 0.42, 'lowpass', big ? 1400 : smg ? 3200 : 2400);
+        this.tone(big ? 110 : 170, big ? 0.16 : 0.08, 'square', big ? 0.3 : 0.2, 0, 50);
+        break;
+      }
+      case 'shot2': this.burst(0.16, 0.3 * a, 'lowpass', 1500); this.tone(150, 0.07, 'square', 0.12 * a, 0, 60); break;
+      case 'reload': this.tone(900, 0.03, 'square', 0.08); this.tone(600, 0.04, 'square', 0.08, 0.16); this.burst(0.05, 0.12, 'highpass', 3000, 0.3); break;
+      case 'boom': this.burst(1.1, 0.8, 'lowpass', 700); this.tone(70, 0.7, 'sine', 0.7, 0, 28); this.burst(0.4, 0.3, 'highpass', 2500, 0.03); break;
+      case 'hurt': this.tone(220, 0.12, 'sawtooth', 0.14, 0, 120); break;
+      case 'door': this.burst(0.07, 0.25, 'lowpass', 900); this.tone(120, 0.06, 'sine', 0.2, 0.01, 70); break;
       case 'beep': this.tone(440, 0.16, 'square', 0.14); break;
       case 'go': this.tone(880, 0.5, 'square', 0.16); break;
       case 'cp': this.tone(880, 0.09, 'triangle', 0.22); this.tone(1320, 0.14, 'triangle', 0.22, 0.08); break;

@@ -1,6 +1,7 @@
 // HUD compacto: minimapa, velocímetro, nitro, posição/volta/tempo, estrelas, mensagens e botões do topo.
 import { Minimap } from './minimap.js';
 import { fmtTime, fmtMoney } from '../core/util.js';
+import { WEAPONS } from '../game/onfoot.js';
 
 const IC = {
   reset: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v5h5"/></svg>',
@@ -31,6 +32,8 @@ export class Hud {
         <button class="hb" data-a="pause" aria-label="Pausa">${IC.pause}</button>
       </div>
       <div class="h-speed"><span class="gear">1</span><span class="num">0</span><span class="unit">km/h</span><div class="nbar"><i></i></div></div>
+      <div class="h-foot hidden"><div class="hp"><i></i></div><div class="wp"><b class="wname">Pistola</b><span class="wammo">12</span></div></div>
+      <div class="h-cross hidden"><i></i></div>
       <div class="h-msg"></div>
       <div class="h-toast"></div>
       <div class="h-wrong hidden">CONTRAMÃO</div>
@@ -41,7 +44,7 @@ export class Hud {
       money: q('.h-money'), race: q('.h-race'), pos: q('.pos'), lap: q('.lap'), lapbox: q('.lapbox'), time: q('.time'),
       stars: q('.h-stars'), starEls: [...root.querySelectorAll('.h-stars svg')], evade: q('.evade'), evadeBar: q('.evade i'),
       num: q('.num'), gear: q('.gear'), nbar: q('.nbar'), nfill: q('.nbar i'), msg: q('.h-msg'), toast: q('.h-toast'),
-      wrong: q('.h-wrong'), prompt: q('.h-prompt'), fps: q('.h-fps'), radioBtn: q('[data-a="radio"]'),
+      wrong: q('.h-wrong'), foot: q('.h-foot'), hp: q('.hp i'), wname: q('.wname'), wammo: q('.wammo'), cross: q('.h-cross'), speed: q('.h-speed'), prompt: q('.h-prompt'), fps: q('.h-fps'), radioBtn: q('[data-a="radio"]'),
     };
     this.mini = new Minimap(q('#mini'), game.map);
     this.cache = {};
@@ -99,6 +102,20 @@ export class Hud {
     if (this.cache.n !== nf) { this.cache.n = nf; el.nfill.style.transform = `scaleX(${nf})`; }
     if (this.cache.non !== p.nitroOn) { this.cache.non = p.nitroOn; el.nbar.classList.toggle('on', p.nitroOn); }
     this.set('money', el.money, fmtMoney(g.save.money));
+    // a pé: vida, arma e mira no lugar do velocímetro
+    const f = g.foot, on = f.on;
+    if (this.cache.foot !== on) {
+      this.cache.foot = on;
+      el.foot.classList.toggle('hidden', !on); el.cross.classList.toggle('hidden', !on); el.speed.classList.toggle('hidden', on);
+    }
+    if (on) {
+      const hp = Math.round(f.hp);
+      if (this.cache.hp !== hp) { this.cache.hp = hp; el.hp.style.transform = `scaleX(${hp / 100})`; el.hp.classList.toggle('low', hp < 35); }
+      this.set('wn', el.wname, WEAPONS[f.w].name);
+      this.set('wa', el.wammo, f.reloadT > 0 ? 'recarga…' : f.ammo[f.w] + ' / ' + WEAPONS[f.w].mag);
+      const hit = f.hitT > 0;
+      if (this.cache.hit !== hit) { this.cache.hit = hit; el.cross.classList.toggle('hit', hit); }
+    }
     const r = g.race;
     if (this.cache.race !== !!r) { this.cache.race = !!r; el.race.classList.toggle('hidden', !r); }
     if (r) {

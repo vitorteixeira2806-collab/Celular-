@@ -65,7 +65,7 @@ export class Minimap {
 
   render(g) {
     if (this.frame++ % 3) return;
-    const ctx = this.ctx, R = (this.size / 2) * this.dpr, p = g.player;
+    const ctx = this.ctx, R = (this.size / 2) * this.dpr, p = g.chaseTarget();
     this.range = damp(this.range, 150 + Math.min(p.speed, 70) * 1.7, 2, 0.05);
     const z = R / this.range;
     const a = p.yaw - Math.PI;

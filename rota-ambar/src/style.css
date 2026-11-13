@@ -53,6 +53,22 @@ body.portrait #rotate { display: flex; }
 .nitro { width: calc(72px * var(--ts)); height: calc(72px * var(--ts)); right: calc(20px + var(--sr)); bottom: calc(18px + var(--sb) + 106px * var(--ts)); border-color: #7fd6ff; color: #bfeaff; }
 .hand { width: calc(72px * var(--ts)); height: calc(72px * var(--ts)); right: calc(16px + var(--sr) + 104px * var(--ts)); bottom: calc(18px + var(--sb) + 94px * var(--ts)); }
 .nitro.on { background: rgba(80, 190, 255, 0.6); }
+/* a pé / dirigindo: cada modo mostra só os seus controles */
+#touch[data-mode='foot'] .drv, #touch[data-mode='drive'] .ft { display: none !important; }
+.exit { width: calc(64px * var(--ts)); height: calc(64px * var(--ts)); left: calc(16px + var(--sl)); bottom: calc(18px + var(--sb) + 104px * var(--ts)); }
+.exit svg { width: 42%; height: 42%; }
+.fire { width: calc(98px * var(--ts)); height: calc(98px * var(--ts)); right: calc(16px + var(--sr)); bottom: calc(18px + var(--sb)); background: rgba(210, 60, 40, 0.34); }
+.aim { width: calc(74px * var(--ts)); height: calc(74px * var(--ts)); right: calc(16px + var(--sr) + 110px * var(--ts)); bottom: calc(18px + var(--sb)); }
+.rel { width: calc(66px * var(--ts)); height: calc(66px * var(--ts)); right: calc(16px + var(--sr) + 96px * var(--ts)); bottom: calc(18px + var(--sb) + 86px * var(--ts)); }
+.wep { width: calc(66px * var(--ts)); height: calc(66px * var(--ts)); right: calc(20px + var(--sr)); bottom: calc(18px + var(--sb) + 110px * var(--ts)); }
+.rel b, .wep b { font-size: calc(9.5px * var(--ts)); }
+.enter { width: calc(74px * var(--ts)); height: calc(74px * var(--ts)); right: calc(16px + var(--sr) + 180px * var(--ts)); bottom: calc(18px + var(--sb) + 60px * var(--ts)); border-color: var(--amber); color: #ffe2a6; display: none; }
+#touch.cannear[data-mode='foot'] .enter { display: flex; }
+.tjoy { position: absolute; width: 0; height: 0; left: calc(40px + var(--sl) + 70px * var(--ts)); top: calc(100% - 96px * var(--ts) - var(--sb)); pointer-events: none; opacity: calc(var(--to) * 0.7); }
+.tjoy.on { opacity: min(1, calc(var(--to) + 0.25)); }
+.tjbase { position: absolute; left: calc(-66px * var(--ts)); top: calc(-66px * var(--ts)); width: calc(132px * var(--ts)); height: calc(132px * var(--ts)); border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.5); background: rgba(10, 14, 22, 0.32); }
+.tjknob { position: absolute; left: calc(-30px * var(--ts)); top: calc(-30px * var(--ts)); width: calc(60px * var(--ts)); height: calc(60px * var(--ts)); border-radius: 50%; background: rgba(255, 255, 255, 0.75); }
+.tjoy:not(.on) .tjknob { transform: none !important; }
 #touch.autogas .gas { display: none; }
 #touch.autogas .brake { right: calc(16px + var(--sr)); width: calc(96px * var(--ts)); height: calc(96px * var(--ts)); }
 #touch.autogas .hand { right: calc(16px + var(--sr) + 108px * var(--ts)); bottom: calc(18px + var(--sb)); width: calc(78px * var(--ts)); height: calc(78px * var(--ts)); }
@@ -110,6 +126,19 @@ body.portrait #rotate { display: flex; }
 .h-stars .evade { margin-left: 8px; width: 60px; height: 6px; background: rgba(0, 0, 0, 0.5); border-radius: 3px; overflow: hidden; }
 .h-stars .evade i { display: block; height: 100%; background: #6fe08a; }
 @keyframes blink { 50% { opacity: 0.25; } }
+.h-foot { position: absolute; left: 50%; bottom: calc(10px + var(--sb)); transform: translateX(-50%); width: 230px; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.h-foot .hp { height: 9px; border-radius: 5px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.3); overflow: hidden; }
+.h-foot .hp i { display: block; height: 100%; background: linear-gradient(90deg, #3fbf6a, #8fe6a0); transform-origin: left; transition: transform 0.15s; }
+.h-foot .hp i.low { background: linear-gradient(90deg, #d8402c, #ff8a5a); }
+.h-foot .wp { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 3px; font-size: 12px; white-space: nowrap; }
+.h-foot .wp b { font-weight: 800; letter-spacing: 0.04em; }
+.h-foot .wp span { font-weight: 700; color: #ffe2a6; }
+.h-cross { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
+.h-cross::before, .h-cross::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 2px rgba(0, 0, 0, 0.9); }
+.h-cross::before { left: 10px; top: 0; width: 2px; height: 22px; clip-path: polygon(0 0, 100% 0, 100% 32%, 0 32%, 0 68%, 100% 68%, 100% 100%, 0 100%); }
+.h-cross::after { top: 10px; left: 0; height: 2px; width: 22px; clip-path: polygon(0 0, 32% 0, 32% 100%, 0 100%, 68% 100%, 68% 0, 100% 0, 100% 100%); }
+.h-cross i { position: absolute; left: 9px; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 2px #000; }
+.h-cross.hit::before, .h-cross.hit::after, .h-cross.hit i { background: #ff5a3c; }
 .h-msg {
   position: absolute; left: 50%; top: 27%; transform: translate(-50%, -50%); text-align: center; font-weight: 900; font-style: italic;
   font-size: 30px; letter-spacing: 0.02em; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85); white-space: nowrap; opacity: 0; transition: opacity 0.25s;

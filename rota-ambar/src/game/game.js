@@ -185,7 +185,10 @@ export class Game {
 
   onKey(code) {
     const ui = this.ui, driving = (this.state === 'roam' || this.state === 'race') && !this.paused;
-    if (code === 'KeyC' && driving) this.cam.cycle();
+    if (code === 'KeyF' && driving) this.footAction(this.foot.on ? 'enter' : 'exit');
+    else if (code === 'KeyR' && driving && this.foot.on) this.footAction('rel');
+    else if (code === 'KeyQ' && driving) this.footAction('wep');
+    else if (code === 'KeyC' && driving && !this.foot.on) this.cam.cycle();
     else if (code === 'KeyR' && driving) this.resetCar();
     else if (code === 'KeyM' && ui) { if (ui.screen === 'map') ui.resume(); else if (driving) ui.openMap(); }
     else if ((code === 'Escape' || code === 'KeyP') && ui) { if (ui.screen === 'pause' || ui.screen === 'map') ui.resume(); else if (driving) ui.openPause(); }
@@ -225,7 +228,7 @@ export class Game {
   step(dt) {
     this.time += dt;
     const p = this.player;
-    const drive = this.state === 'roam' || (this.state === 'race' && this.race && this.race.state === 'run');
+    const drive = (this.state === 'roam' && !this.foot.on) || (this.state === 'race' && this.race && this.race.state === 'run');
     if (this.autopilot && (drive || this.state === 'title')) this.autopilot.update(dt, this.bodies, true);
     else if (drive) { this.input.read(p.in); this.steerAssist(); }
     else { p.in.throttle = 0; p.in.brake = 1; p.in.steer = 0; p.in.handbrake = true; p.in.nitro = false; }
@@ -243,11 +246,11 @@ export class Game {
     for (let i = 0; i < dyn.length; i++) bodies.push(dyn[i]);
     for (let i = 0; i < tc.length; i++) if (tc[i].active) bodies.push(tc[i]);
     this.stepSystems(dt);
-    this.traffic.step(dt, this.time, bodies, p, this.camDir);
+    this.traffic.step(dt, this.time, bodies, this.chaseTarget(), this.camDir);
     for (let i = 0; i < dyn.length; i++) {
       for (let j = i + 1; j < dyn.length; j++) {
         const imp = collideCars(dyn[i], dyn[j]);
-        if (i === 0 && imp > 1) this.police.onPlayerHit(dyn[j], imp);
+        if (i === 0 && imp > 1 && dyn[j].kind !== 'parked') this.police.onPlayerHit(dyn[j], imp);
       }
       for (let j = 0; j < tc.length; j++) {
         if (!tc[j].active) continue;
@@ -266,9 +269,12 @@ export class Game {
   render(dt) {
     const p = this.player;
     this.view.update(p, dt);
-    this.cam.update(dt, p, this.map, this.view.dims, this.opt.shake);
+    this.input.pollPad();
+    if (this.foot.on && !this.cam.orbit) this.cam.updateFoot(dt, this.foot, this.map, this.opt.shake);
+    else this.cam.update(dt, p, this.map, this.view.dims, this.opt.shake);
     this.world.update(dt, this.cam.cam, this.time, this.paused);
-    this.camDir.x = Math.sin(this.cam.yaw); this.camDir.z = Math.cos(this.cam.yaw);
+    const cyaw = this.foot.on ? this.foot.yaw : this.cam.yaw;
+    this.camDir.x = Math.sin(cyaw); this.camDir.z = Math.cos(cyaw);
     // frota instanciada + efeitos
     const f = this.fleet, night = this.world.night, map = this.map;
     f.begin(this.cam.cam);

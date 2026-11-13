@@ -20,6 +20,7 @@ G.initModes = function () {
   this.chases = chaseSpots(map);
   this.hud = new Hud(this.els.hud, this);
   this.race = null; this.police = new Police(this);
+  this.initFoot();
   this.blips = []; this.routePts = null; this.waypoint = null; this.navT = 0; this.routeT = 0;
   this.spots = [];
   const addSpot = (type, x, z, color, data) => {
@@ -45,13 +46,15 @@ G.sfx = function (name, a) { if (this.audio) this.audio.play(name, a); };
 G.collectDynamics = function (dyn) {
   if (this.race) this.race.collect(dyn);
   if (this.police) this.police.collect(dyn);
+  this.footBodies(dyn);
 };
 G.stepSystems = function (dt) {
   if (this.race) this.race.step(dt);
   if (this.police) this.police.step(dt);
-  if (this.state === 'roam') this.updateRoam(dt);
+  this.footStep(dt);
+  if (this.state === 'roam' && !this.foot.on) this.updateRoam(dt);
   const p = this.player;
-  if (p.waterT > 1.4 && (this.state === 'roam' || this.state === 'race')) {
+  if (p.waterT > 1.4 && !this.foot.on && (this.state === 'roam' || this.state === 'race')) {
     this.resetCar();
     this.hud.toast('Resgatado da água');
   }
@@ -61,6 +64,7 @@ G.stepSystems = function (dt) {
 G.drawSystems = function (f, night) {
   if (this.race) this.race.draw(f, night);
   if (this.police) this.police.draw(f, night);
+  this.footDraw(f, night);
   const t = this.time;
   for (const s of this.spots) {
     s.beam.visible = this.state === 'roam' && !(this.police && this.police.stars > 0) && s !== this.spotNear;
@@ -100,6 +104,7 @@ G.startEvent = function (id, mode) {
   if (!ev) return;
   if (this.race) { this.race.dispose(); this.race = null; }
   if (this.police) this.police.clear();
+  this.footReset();
   this.hud.hidePrompt(); this.spotNear = null;
   this.hud.toastT = 0; this.hud.el.toast.classList.remove('show');
   this.traffic.clear();
@@ -177,8 +182,8 @@ G.resetCar = function () {
 };
 
 G.hudAction = function (a) {
-  if (a === 'cam') { this.cam.cycle(); this.sfx('tick'); }
-  else if (a === 'reset') { this.resetCar(); this.sfx('tick'); }
+  if (a === 'cam') { if (!this.foot.on) this.cam.cycle(); this.sfx('tick'); }
+  else if (a === 'reset') { if (!this.foot.on) this.resetCar(); this.sfx('tick'); }
   else if (a === 'radio') { if (this.audio) this.audio.nextStation(); }
   else if (a === 'map') { if (this.ui && this.ui.openMap) this.ui.openMap(); }
   else if (a === 'pause') { if (this.ui && this.ui.openPause) this.ui.openPause(); }

@@ -93,6 +93,7 @@ G.applyShadows = function () {
 G.toTitle = function () {
   if (this.race) this.endEvent();
   this.police.clear();
+  this.footReset();
   this.equipCar(this.save.car);
   const ev = this.events.find((e) => e.id === 'orla'), p = ev.path;
   const i = 40;
@@ -108,6 +109,7 @@ G.toTitle = function () {
 G.startRoam = function () {
   this.autopilot = null;
   this.cam.orbit = null;
+  this.footReset();
   this.equipCar(this.save.car);
   this.setState('roam');
   this.setPaused(false);
@@ -120,6 +122,7 @@ G.enterGarage = function () {
   if (this.race) this.endEvent();
   if (this.police.stars > 0) { this.hud.toast('Despiste a polícia antes de entrar na oficina'); return false; }
   this.police.clear();
+  this.footReset();
   this.autopilot = null;
   this.hud.hidePrompt(); this.spotNear = null;
   const g = this.map.garage;

@@ -43,6 +43,14 @@ export class Police {
     }
   }
 
+  // garante ao menos n estrelas (tiros, atropelamentos)
+  raise(n) {
+    if (this.g.state !== 'roam') return;
+    if (this.stars === 0) this.begin(n);
+    else if (this.stars < n) { this.base = n; this.heat = 0; this.setStars(n); }
+    this.engaged = true;
+  }
+
   // infração no passeio livre
   crime(points, witnessed) {
     if (this.g.state !== 'roam') return;
@@ -54,12 +62,12 @@ export class Police {
   begin(stars) {
     this.base = stars; this.heat = 0; this.evade = 0; this.chaseTime = 0; this.bustT = 0; this.offense = 0;
     this.engaged = false; // só dá para despistar depois que alguma viatura avistar o jogador
-    this.last.x = this.g.player.x; this.last.z = this.g.player.z;
+    this.last.x = this.g.chaseTarget().x; this.last.z = this.g.chaseTarget().z;
     this.setStars(stars);
     // viaturas em patrulha por perto entram na perseguição
     for (const c of this.g.traffic.cars) {
       if (!c.active || !c.police) continue;
-      if (Math.hypot(c.x - this.g.player.x, c.z - this.g.player.z) < 160 && this.units.length < 5) {
+      if (Math.hypot(c.x - this.g.chaseTarget().x, c.z - this.g.chaseTarget().z) < 160 && this.units.length < 5) {
         c.active = false;
         const u = this.addUnit(c.x, c.z, c.yaw);
         u.v.vx = c.vx; u.v.vz = c.vz;
@@ -88,7 +96,7 @@ export class Police {
   }
 
   spawnUnit() {
-    const map = this.map, p = this.g.player, rng = this.rng, cd = this.g.camDir;
+    const map = this.map, p = this.g.chaseTarget(), rng = this.rng, cd = this.g.camDir;
     for (let attempt = 0; attempt < 6; attempt++) {
       const ang = rng() * Math.PI * 2, r = 130 + rng() * 90;
       const px = p.x + Math.sin(ang) * r, pz = p.z + Math.cos(ang) * r;
@@ -111,7 +119,7 @@ export class Police {
 
   // bloqueio à frente do jogador, atravessado na via
   spawnBlock() {
-    const map = this.map, p = this.g.player;
+    const map = this.map, p = this.g.chaseTarget();
     const ne = map.nearestEdge(p.x, p.z);
     if (!ne || p.speed < 10) return false;
     let e = ne.edge;
@@ -168,7 +176,7 @@ export class Police {
 
   // alguma viatura em patrulha vê o jogador?
   patrolSees() {
-    const p = this.g.player;
+    const p = this.g.chaseTarget();
     for (const c of this.g.traffic.cars) {
       if (!c.active || !c.police || c.mode === 2) continue;
       const d = Math.hypot(c.x - p.x, c.z - p.z);
@@ -178,7 +186,7 @@ export class Police {
   }
 
   step(dt) {
-    const g = this.g, p = g.player, map = this.map;
+    const g = this.g, p = g.chaseTarget(), map = this.map;
     if (g.state !== 'roam') return;
     if (this.stars === 0) {
       this.offense = Math.max(0, this.offense - dt * 0.03);
@@ -255,14 +263,14 @@ export class Police {
     if (want > this.stars) this.setStars(want);
 
     // preso: parado com viatura encostada
-    if (close && p.speed < 3) {
+    if (close && p.speed < 3 && !p.isFoot) { // a pé, quem resolve são os policiais desembarcados
       this.bustT += dt;
       if (this.bustT > 2.2) this.busted();
     } else this.bustT = Math.max(0, this.bustT - dt * 0.7);
   }
 
   drive(u, dt, dist) {
-    const v = u.v, p = this.g.player, map = this.map, inp = v.in;
+    const v = u.v, p = this.g.chaseTarget(), map = this.map, inp = v.in;
     let tx, tz, direct = false;
     u.noDirect = Math.max(0, (u.noDirect || 0) - dt);
     if (u.los && u.noDirect <= 0) {
@@ -294,6 +302,7 @@ export class Police {
       while (u.ri < rt.length - 1 && Math.hypot(rt[u.ri].x - v.x, rt[u.ri].z - v.z) < 13) u.ri++;
       tx = rt[u.ri].x; tz = rt[u.ri].z;
     }
+    if (u.hold) { inp.throttle = 0; inp.brake = 1; inp.steer = 0; inp.handbrake = true; return; } // policial desembarcou
     const err = angleDiff(Math.atan2(tx - v.x, tz - v.z), v.yaw);
     if (u.rev > 0) {
       u.rev -= dt;

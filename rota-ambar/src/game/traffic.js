@@ -90,7 +90,7 @@ export class Traffic {
       c.pace = 0.82 + rng() * 0.3;
       c.speed = e.speed * c.pace * 0.8;
       c.x = _L.x; c.z = _L.z; c.y = _L.y; c.yaw = Math.atan2(_L.hx, _L.hz); c.pitch = 0;
-      c.wait = 0; c.cleared = false; c.stuckT = 0; c.ghostT = 0; c.yawRate = 0; c.damage = 0; c.hitT = 0;
+      c.wait = 0; c.cleared = false; c.stuckT = 0; c.ghostT = 0; c.yawRate = 0; c.damage = 0; c.hitT = 0; c.hp = null; c.fled = false;
       return;
     }
   }
@@ -159,7 +159,9 @@ export class Traffic {
       let target = e.speed * c.pace;
       c.ghostT = Math.max(0, c.ghostT - dt);
       if (c.ghostT <= 0) {
-        const gap = this.gapAhead(c, bodies);
+        let gap = this.gapAhead(c, bodies);
+        // freia para quem está a pé na pista
+        if (player.isFoot) { const dx = player.x - c.x, dz = player.z - c.z, fw = dx * Math.sin(c.yaw) + dz * Math.cos(c.yaw); if (fw > 0 && fw < 9 + c.speed * 1.9 && Math.abs(-dx * Math.cos(c.yaw) + dz * Math.sin(c.yaw)) < 1.9) gap = Math.min(gap, fw - c.halfLen - 0.6); }
         if (gap < 60) target = Math.min(target, Math.max(0, (gap - 2.6) * 0.85));
         if (gap < 3.2 && c.speed < 0.3) { c.stuckT += dt; if (c.stuckT > (c.mode === 1 ? 4 : 9)) { c.ghostT = 2.5; c.stuckT = 0; } } else c.stuckT = 0;
       }

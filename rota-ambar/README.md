@@ -59,8 +59,17 @@ Em Opções: aceleração automática, assistência de direção, tamanho e opac
 vibração, densidade do trânsito, qualidade (auto/baixa/média/alta), economia de bateria (30 fps),
 volumes, mudo e estação da rádio.
 
+**A pé** (toque em SAIR com o carro parado): analógico à esquerda para andar, arraste à direita
+para olhar, ATIRAR, MIRAR, RECARGA, ARMA (pistola, submetralhadora, escopeta) e ENTRAR perto de
+qualquer carro — o seu ou um do trânsito.
+
 Teclado (apoio para testes): `W A S D` ou setas, `Espaço` freio de mão, `Shift` nitro,
-`C` câmera, `M` mapa, `R` recolocar, `Esc`/`P` pausa.
+`C` câmera, `M` mapa, `R` recolocar, `Esc`/`P` pausa, `F` sair/entrar no carro.
+A pé: `W A S D` anda, setas olham, `Espaço` atira, `E` mira, `R` recarrega, `Q` troca de arma.
+
+Controle (PlayStation, Xbox e similares, via Gamepad API): analógico esquerdo dirige/anda,
+direito olha, R2 acelera/atira, L2 freia/mira, ✕ nitro, R1 freio de mão, △ sai/entra,
+□ recarrega, L1 troca de arma, Options pausa.
 
 ## Modos
 
@@ -69,6 +78,8 @@ Teclado (apoio para testes): `W A S D` ou setas, `Espaço` freio de mão, `Shift
 - **Corridas de rua:** 8 eventos (circuito e ponto a ponto) contra 5 rivais.
 - **Contra o relógio:** os mesmos traçados, com o fantasma da sua melhor volta e medalhas.
 - **Fuga da polícia:** 1 a 5 estrelas, viaturas e bloqueios; despiste saindo do campo de visão.
+- **A pé:** saia do carro, ande pela cidade, atire, roube carros do trânsito. Pedestres fogem dos
+  tiros; com 2 estrelas ou mais os policiais desembarcam e atiram de volta.
 - **Oficina:** 6 carros, melhorias de motor, pneus e nitro, e troca de pintura.
 
 O progresso (dinheiro, carros, melhorias, opções e melhores tempos) fica salvo no aparelho (localStorage).

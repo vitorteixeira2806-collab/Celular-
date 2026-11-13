@@ -2,6 +2,7 @@ import './style.css';
 import { Game } from './game/game.js';
 import './game/modes.js';
 import './game/meta.js';
+import './game/onfoot.js';
 import { UI } from './ui/menus.js';
 import { blockGestures } from './core/platform.js';
 

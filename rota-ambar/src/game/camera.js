@@ -14,6 +14,33 @@ export class ChaseCamera {
   cycle() { this.mode = (this.mode + 1) % 3; return this.mode; }
   kick(a) { this.shake = Math.min(1, this.shake + a); }
   snap() { this.first = true; }
+  // a pé: câmera sobre o ombro direito, com "braço de mola" que encurta ao encostar em paredes
+  updateFoot(dt, f, map, shakeOn = true) {
+    const cam = this.cam, me = f.me, aim = me.aim;
+    this.t += dt;
+    this.shake = Math.max(0, this.shake - dt * 3);
+    const amp = shakeOn ? this.shake * 0.05 : 0;
+    cam.fov = damp(cam.fov, lerp(62, 46, aim), 8, dt);
+    cam.updateProjectionMatrix();
+    const dist = lerp(3.7, 2.2, aim), side = lerp(0.5, 0.62, aim);
+    const cp = Math.cos(f.pitch), sn = Math.sin(f.yaw), cs = Math.cos(f.yaw);
+    const fx = sn * cp, fy = Math.sin(f.pitch), fz = cs * cp;
+    const px = me.x - cs * side, py = me.y + 1.56, pz = me.z + sn * side;
+    let d = dist;
+    for (let t = 0.3; t <= dist; t += 0.25) {
+      const x = px - fx * t, y = py - fy * t, z = pz - fz * t;
+      let hit = y < map.heightAt(x, z) + 0.25;
+      if (!hit) { const cell = map.colCell(x, z); if (cell) for (const bi of cell.b) { const b = map.boxes[bi]; if (y < b[4] && x > b[0] - 0.2 && x < b[2] + 0.2 && z > b[1] - 0.2 && z < b[3] + 0.2) { hit = true; break; } } }
+      if (hit) { d = Math.max(0.45, t - 0.3); break; }
+    }
+    this.footD = this.footD == null ? d : d < this.footD ? d : damp(this.footD, d, 6, dt);
+    const dd = this.footD;
+    cam.position.set(px - fx * dd + Math.sin(this.t * 51) * amp, py - fy * dd + Math.cos(this.t * 43) * amp, pz - fz * dd);
+    cam.rotation.order = 'XYZ';
+    this.look.set(px + fx * 20, py + fy * 20, pz + fz * 20);
+    cam.lookAt(this.look);
+    this.yaw = f.yaw; this.first = true;
+  }
   update(dt, v, map, dims, shakeOn = true) {
     const cam = this.cam;
     this.t += dt;
