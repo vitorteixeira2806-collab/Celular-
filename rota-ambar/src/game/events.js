@@ -61,11 +61,24 @@ export function buildEvents(map) {
 // desafios de fuga da polícia (marcadores no passeio livre)
 export function chaseSpots(map) {
   const X = map.GX, Z = map.GZ;
-  return [
-    { id: 'fuga1', name: 'Fuga: Centro', stars: 2, x: X[6] + 3, z: (Z[4] + Z[5]) / 2 },
-    { id: 'fuga2', name: 'Fuga: Zona Industrial', stars: 3, x: (X[12] + X[13]) / 2, z: Z[2] + 3 },
-    { id: 'fuga3', name: 'Fuga: Residencial', stars: 4, x: X[2] + 3, z: (Z[3] + Z[4]) / 2 },
+  const want = [
+    { id: 'fuga1', name: 'Fuga: Centro', stars: 2, x: X[6], z: (Z[4] + Z[5]) / 2 },
+    { id: 'fuga2', name: 'Fuga: Zona Industrial', stars: 3, x: (X[12] + X[13]) / 2, z: Z[2] },
+    { id: 'fuga3', name: 'Fuga: Residencial', stars: 4, x: X[2], z: (Z[3] + Z[4]) / 2 },
   ];
+  // encaixa cada ponto no meio-fio da via mais próxima (alguns trechos da malha não existem)
+  return want.map((c) => {
+    let ne = map.nearestEdge(c.x, c.z);
+    if (!ne || ne.dist > 30) {
+      const n = map.nearestNode(c.x, c.z, (q) => q.kind === 'grid' && q.edges.length >= 3);
+      const e = map.edges[n.edges[0]];
+      const P = map.pointOnEdge(e, e.len / 2);
+      ne = { edge: e, s: e.len / 2, x: P.x, z: P.z };
+    }
+    const P = map.pointOnEdge(ne.edge, ne.s);
+    const off = ne.edge.width / 2 - 2.6;
+    return Object.assign(c, { x: P.x + P.nx * off, z: P.z + P.nz * off });
+  });
 }
 
 export const medalOf = (ev, t) => (t == null ? 0 : t <= ev.gold ? 3 : t <= ev.silver ? 2 : t <= ev.bronze ? 1 : 0);

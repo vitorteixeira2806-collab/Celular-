@@ -63,7 +63,7 @@ export class Game {
 
     this.audio = new AudioSys(this);
     // farol real do jogador (só em qualidade média/alta, à noite)
-    this.spot = new THREE.SpotLight(0xfff0d0, 0, 70, 0.55, 0.7, 1.1);
+    this.spot = new THREE.SpotLight(0xfff0d0, 0, 75, 0.55, 0.7, 1.0);
     this.spot.visible = false;
     this.scene.add(this.spot, this.spot.target);
     this.input = new Input(this.opt);
@@ -205,6 +205,8 @@ export class Game {
     if (this.fpsAcc >= 0.5) { this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0; }
     if (this.hiddenPause || this.portrait) return;
     this.frameNo++;
+    // em pausa (menus sobre o jogo) renderiza na metade da taxa para poupar bateria
+    if (this.paused && (this.frameNo & 1)) return;
     if (!this.paused) {
       this.acc += dt;
       let n = 0;
@@ -283,7 +285,7 @@ export class Game {
     if (this.spot.visible !== spotOn) this.spot.visible = spotOn;
     if (spotOn) {
       const sn = Math.sin(p.yaw), cs = Math.cos(p.yaw);
-      this.spot.intensity = 260 * night;
+      this.spot.intensity = 42 * night;
       this.spot.position.set(p.x + sn * 1.2, p.y + 1.1, p.z + cs * 1.2);
       this.spot.target.position.set(p.x + sn * 22, p.y - 0.4, p.z + cs * 22);
       this.spot.target.updateMatrixWorld();

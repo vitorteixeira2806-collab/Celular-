@@ -111,6 +111,7 @@ G.startRoam = function () {
   this.setPaused(false);
   this.cam.snap();
   this.traffic.setDensity(this.opt.traffic);
+  if (!this.hinted) { this.hinted = true; this.hud.toast('Pare sobre um marcador luminoso para abrir um evento', 5); }
 };
 
 G.enterGarage = function () {

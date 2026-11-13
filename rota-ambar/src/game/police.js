@@ -2,16 +2,16 @@
 // Escapa-se saindo do campo de visão por alguns segundos.
 import { Vehicle } from '../vehicles/vehicle.js';
 import { MODEL_DIMS } from '../vehicles/cars.js';
-import { clamp, angleDiff, mulberry32, fmtMoney } from '../core/util.js';
+import { clamp, angleDiff, mulberry32, fmtMoney, segDist2 } from '../core/util.js';
 import { persist } from '../core/save.js';
 
 const LEVEL = [
   null,
-  { n: 1, top: 47, accel: 8, grip: 1.05 },
-  { n: 2, top: 53, accel: 9, grip: 1.1 },
-  { n: 3, top: 60, accel: 10.2, grip: 1.15 },
-  { n: 4, top: 68, accel: 11.5, grip: 1.22 },
-  { n: 5, top: 76, accel: 13, grip: 1.3 },
+  { n: 1, top: 40, accel: 7, grip: 1.0 },
+  { n: 2, top: 46, accel: 8, grip: 1.05 },
+  { n: 3, top: 54, accel: 9.5, grip: 1.12 },
+  { n: 4, top: 63, accel: 11, grip: 1.2 },
+  { n: 5, top: 73, accel: 12.5, grip: 1.28 },
 ];
 const COLOR = 0x1c2a44;
 const DIMS = MODEL_DIMS.sedan;
@@ -53,6 +53,7 @@ export class Police {
 
   begin(stars) {
     this.base = stars; this.heat = 0; this.evade = 0; this.chaseTime = 0; this.bustT = 0; this.offense = 0;
+    this.engaged = false; // só dá para despistar depois que alguma viatura avistar o jogador
     this.last.x = this.g.player.x; this.last.z = this.g.player.z;
     this.setStars(stars);
     // viaturas em patrulha por perto entram na perseguição
@@ -97,7 +98,10 @@ export class Police {
       const dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz);
       if (d < 110) continue;
       // fora do campo de visão da câmera, se possível
-      if ((dx * cd.x + dz * cd.z) / d > 0.6 && d < 190 && map.lineOfSight(x, z, p.x, p.z)) continue;
+      const los = map.lineOfSight(x, z, p.x, p.z);
+      if ((dx * cd.x + dz * cd.z) / d > 0.6 && d < 190 && los) continue;
+      // enquanto o jogador está despistando, reforços não nascem com visada para ele
+      if (los && this.engaged && !this.seen) continue;
       const yaw = Math.atan2(-dx, -dz);
       this.addUnit(x, z, yaw);
       return true;
@@ -216,8 +220,9 @@ export class Police {
       const dx = p.x - v.x, dz = p.z - v.z, d = Math.hypot(dx, dz);
       if (d > 420 || u.hits > 40) { this.units.splice(i, 1); continue; }
       u.life += dt;
-      u.los = d < 55 || (d < 230 && map.lineOfSight(v.x, v.z, p.x, p.z));
-      if (u.los) seen = true;
+      // los = visada livre (dirige direto); perto demais também conta como "visto"
+      u.los = d < 230 && map.lineOfSight(v.x, v.z, p.x, p.z);
+      if (u.los || d < 45) seen = true;
       if (d < nearest) nearest = d;
       if (d < 7.6) close = true;
       this.drive(u, dt, d);
@@ -237,12 +242,13 @@ export class Police {
     this.seen = seen;
     this.siren = clamp(1 - nearest / 220, 0, 1);
 
-    if (seen) {
+    if (seen || !this.engaged) {
+      // até o primeiro contato visual, a central informa a posição do jogador
       this.last.x = p.x; this.last.z = p.z;
+      if (seen) { this.engaged = true; this.heat += dt / 55; }
       this.evade = Math.max(0, this.evade - dt * 0.6);
-      this.heat += dt / 55;
     } else {
-      this.evade += dt / (7 + this.stars * 1.6);
+      this.evade += dt / (6 + this.stars * 1.5);
       if (this.evade >= 1) return this.escaped();
     }
     const want = Math.min(5, this.base + Math.floor(this.heat));
@@ -258,20 +264,31 @@ export class Police {
   drive(u, dt, dist) {
     const v = u.v, p = this.g.player, map = this.map, inp = v.in;
     let tx, tz, direct = false;
-    if (u.los) {
+    u.noDirect = Math.max(0, (u.noDirect || 0) - dt);
+    if (u.los && u.noDirect <= 0) {
       // mira à frente do jogador
       const lead = clamp(dist / (v.speed + 12), 0, 1.1);
       tx = p.x + p.vx * lead; tz = p.z + p.vz * lead;
       direct = true; u.route = null;
     } else {
       u.routeT -= dt;
-      if (!u.route || u.routeT <= 0) {
-        u.routeT = 1.3;
+      const moved = u.route ? Math.hypot(this.last.x - u.gx, this.last.z - u.gz) : 1e9;
+      if (!u.route || (u.routeT <= 0 && moved > 20) || u.routeT < -4) {
+        u.routeT = 1.5;
+        u.gx = this.last.x; u.gz = this.last.z;
         const a = map.nearestNode(v.x, v.z), b = map.nearestNode(this.last.x, this.last.z);
         const seq = a.id !== b.id ? map.findRoute(a.id, b.id, { startDir: [Math.sin(v.yaw), Math.cos(v.yaw)] }) : null;
-        u.route = seq ? map.routePoints(seq) : [];
-        u.route.push({ x: this.last.x, z: this.last.z });
-        u.ri = 0;
+        const rt = seq ? map.routePoints(seq) : [{ x: a.x, z: a.z }];
+        rt.push({ x: this.last.x, z: this.last.z });
+        u.route = rt;
+        // começa no trecho mais próximo da viatura (não volta até o primeiro nó)
+        let bi = 0, bd = 1e12;
+        const nSeg = Math.min(rt.length - 1, 6);
+        for (let i = 0; i < nSeg; i++) {
+          const d2 = segDist2(v.x, v.z, rt[i].x, rt[i].z, rt[i + 1].x, rt[i + 1].z);
+          if (d2 < bd) { bd = d2; bi = i + 1; }
+        }
+        u.ri = bd < 30 * 30 ? bi : 0;
       }
       const rt = u.route;
       while (u.ri < rt.length - 1 && Math.hypot(rt[u.ri].x - v.x, rt[u.ri].z - v.z) < 13) u.ri++;
@@ -298,7 +315,7 @@ export class Police {
     else { inp.throttle = 0.3; inp.brake = 0; }
     inp.nitro = false;
     if (v.speed < 1.2 && inp.throttle > 0.5 && dist > 9) u.stuck += dt; else u.stuck = Math.max(0, u.stuck - dt);
-    if (u.stuck > 1.4) { u.rev = 1.0; u.stuck = 0; u.hits += 8; }
+    if (u.stuck > 1.4) { u.rev = 1.0; u.stuck = 0; u.hits += 8; u.noDirect = 3; u.route = null; }
   }
 
   escaped() {

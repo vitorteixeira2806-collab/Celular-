@@ -276,7 +276,13 @@ export class UI {
       </div></div></div>`;
   }
 
-  showResults(race) { this.race = race; this.open('results'); }
+  showResults(race) {
+    const g = this.g;
+    g.setPaused(false);
+    if (g.audio) g.audio.setPaused(false);
+    this.race = race;
+    this.open('results');
+  }
   results() {
     const r = this.race, res = r.result, ev = r.ev;
     let head, table = '';
