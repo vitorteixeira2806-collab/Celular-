@@ -101,6 +101,7 @@ G.startEvent = function (id, mode) {
   if (this.race) { this.race.dispose(); this.race = null; }
   if (this.police) this.police.clear();
   this.hud.hidePrompt(); this.spotNear = null;
+  this.hud.toastT = 0; this.hud.el.toast.classList.remove('show');
   this.traffic.clear();
   this.traffic.setDensity(this.opt.traffic, mode === 'tt' ? 0 : 0.55);
   this.view.repair();

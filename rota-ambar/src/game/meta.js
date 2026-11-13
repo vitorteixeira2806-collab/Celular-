@@ -4,6 +4,7 @@ import { AIDriver } from './aidriver.js';
 import { CARS, carById, effectiveSpec, upgradeCost } from '../vehicles/cars.js';
 import { persist, resetSave, loadSave } from '../core/save.js';
 import { clamp, angleDiff } from '../core/util.js';
+import * as THREE from 'three';
 
 const G = Game.prototype;
 export const PAINT_COST = 250;
@@ -75,13 +76,14 @@ G.applyShadows = function () {
   const on = !!this.opt.shadows, r = this.renderer, sun = this.sun;
   if (r.shadowMap.enabled === on) return;
   r.shadowMap.enabled = on;
+  r.shadowMap.type = THREE.PCFSoftShadowMap;
   sun.castShadow = on;
   if (on) {
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(2048, 2048);
     const c = sun.shadow.camera;
     c.left = -70; c.right = 70; c.top = 70; c.bottom = -70; c.near = 50; c.far = 600;
     c.updateProjectionMatrix();
-    sun.shadow.bias = -0.0015;
+    sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.6; sun.shadow.radius = 3;
   }
   this.scene.traverse((ob) => { if (ob.material) { const ms = Array.isArray(ob.material) ? ob.material : [ob.material]; for (const m of ms) m.needsUpdate = true; } });
 };

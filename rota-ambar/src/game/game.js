@@ -10,6 +10,7 @@ import { carById, effectiveSpec } from '../vehicles/cars.js';
 import { ChaseCamera } from './camera.js';
 import { Input } from '../ui/input.js';
 import { AudioSys } from '../audio/audio.js';
+import { Particles } from './particles.js';
 import { TouchControls } from '../ui/touch.js';
 import { loadSave, persist } from '../core/save.js';
 import { requestWake, releaseWake, lockLandscape, vibrate, isPortrait } from '../core/platform.js';
@@ -18,8 +19,8 @@ import { clamp } from '../core/util.js';
 const STEP = 1 / 60;
 // escada de qualidade (0 = mais leve). cap = pixel ratio máximo (nunca acima de 2)
 const QUALITY = [
-  { cap: 1, scale: 0.75, radius: 2, propDist: 170, fogFar: 380, spot: false },
-  { cap: 1, scale: 1, radius: 2, propDist: 200, fogFar: 400, spot: false },
+  { cap: 1, scale: 0.75, radius: 2, propDist: 170, fogFar: 380, spot: false, clouds: false },
+  { cap: 1, scale: 1, radius: 2, propDist: 200, fogFar: 400, spot: false, clouds: false },
   { cap: 1.25, scale: 1, radius: 3, propDist: 260, fogFar: 520, spot: false },
   { cap: 1.5, scale: 1, radius: 3, propDist: 300, fogFar: 580, spot: true },
   { cap: 1.75, scale: 1, radius: 4, propDist: 380, fogFar: 720, spot: true },
@@ -38,6 +39,9 @@ export class Game {
 
     const r = (this.renderer = new THREE.WebGLRenderer({ canvas: els.canvas, antialias: false, powerPreference: 'high-performance', stencil: false }));
     r.setClearColor(0x87b5d6);
+    // tone mapping cinematográfico: realça o contraste e deixa luzes fortes estourarem com suavidade
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 1.0;
     this.scene = new THREE.Scene();
     this.cam = new ChaseCamera(innerWidth / innerHeight);
     this.pixelScale = 1;
@@ -62,6 +66,7 @@ export class Game {
     this.player.onLand = (imp) => { if (imp > 5) { this.cam.kick(clamp(imp * 0.03, 0, 0.5)); vibrate(30, this.opt.vibrate); this.sfx('land', imp / 16); } };
 
     this.audio = new AudioSys(this);
+    this.fxp = new Particles();
     // farol real do jogador (só em qualidade média/alta, à noite)
     this.spot = new THREE.SpotLight(0xfff0d0, 0, 75, 0.55, 0.7, 1.0);
     this.spot.visible = false;
@@ -192,6 +197,7 @@ export class Game {
     this.cam.kick(s * 0.6);
     vibrate(Math.round(20 + s * 80), this.opt.vibrate);
     this.sfx('crash', s);
+    if (imp > 6) { const p = this.player, sn = Math.sin(p.yaw), cs = Math.cos(p.yaw); this.fxp.sparks(p.x + lx * cs + lz * sn, p.y, p.z - lx * sn + lz * cs, 3 + Math.round(s * 6)); }
     if (imp > 5) this.view.dent(lx, lz, nx, nz, 0.05 + s * 0.22);
   }
 
@@ -226,6 +232,8 @@ export class Game {
     p.step(dt, this.map);
     if (p.nitroOn && !this.wasNitro) { this.sfx('nitro'); vibrate([20, 30, 40], this.opt.vibrate); }
     this.wasNitro = p.nitroOn;
+    this.fxp.fromCar(p, dt);
+    this.fxp.step(dt);
 
     // corpos dinâmicos (jogador, rivais, polícia) e trânsito
     const dyn = this.dyn, bodies = this.bodies, tc = this.traffic.cars;
@@ -279,6 +287,7 @@ export class Game {
       const sn = Math.sin(p.yaw), cs = Math.cos(p.yaw), hl = p.halfLen + 0.25;
       for (const sx of [-0.35, 0.35]) f.glow(p.x - sn * hl + cs * sx, p.y + 0.35, p.z - cs * hl - sn * sx, 0.5 + Math.random() * 0.25, 0x58b8ff, 1.2);
     }
+    this.fxp.draw(f, 1 - night * 0.72);
     f.end();
     // farol real
     const spotOn = this.q.spot && night > 0.35 && this.state !== 'garage';

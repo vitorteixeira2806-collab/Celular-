@@ -1,6 +1,7 @@
 // Catálogo de carros (todos originais) e geometria procedural low-poly.
 import * as THREE from 'three';
 import { Geo, C } from '../world/geo.js';
+import { glossy } from '../world/env.js';
 
 // top = velocidade máxima (m/s), accel (m/s²), grip (multiplicador), steer (agilidade)
 export const CARS = [
@@ -183,4 +184,4 @@ export function carGeometry(model, opts = {}) {
 }
 
 // material compartilhado para detalhes
-export const detailMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+export const detailMat = glossy(new THREE.MeshLambertMaterial({ vertexColors: true }), 'detail');

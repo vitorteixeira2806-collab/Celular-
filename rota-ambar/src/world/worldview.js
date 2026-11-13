@@ -5,6 +5,7 @@ import { Geo, C, shade, mix } from './geo.js';
 import { CHUNK, RING, WATER_Y, laneWidth } from './map.js';
 import { clamp, lerp, smoothstep, fbm, hash2 } from '../core/util.js';
 import { signalColor } from './signals.js';
+import { ENV, ENV_PARS, bindEnv } from './env.js';
 
 const COL = {
   asphalt: C(0x3a3d42), highway: C(0x34373c), mountain: C(0x424440), dock: C(0x4b4c4e),
@@ -20,6 +21,7 @@ const K = (t, top, hor, sun, sunI, hemiSky, hemiGnd, hemiI) => ({
   t, top: new THREE.Color(top), hor: new THREE.Color(hor), sun: new THREE.Color(sun), sunI,
   hs: new THREE.Color(hemiSky), hg: new THREE.Color(hemiGnd), hemiI,
 });
+const _white = new THREE.Color(1, 1, 1);
 const TOD = [
   K(0.0, 0x050915, 0x18223a, 0x9db0e6, 0.5, 0x6477a8, 0x2c3140, 1.0),
   K(0.19, 0x070c1c, 0x1c2640, 0x9db0e6, 0.5, 0x6477a8, 0x2c3140, 1.0),
@@ -41,14 +43,16 @@ export class WorldView {
     this.radius = 3; this.propDist = 300; this.fogFar = 560;
     this.ccx = 1e9; this.ccz = 1e9;
     this.tod = 0.66; this.night = 0; this.dayLen = 540;
-    this.uni = { night: { value: 0 } };
+    this.uni = { night: ENV.uNight };
     this.sunDir = new THREE.Vector3(0, 1, 0);
     this.group = new THREE.Group();
     scene.add(this.group);
-    scene.fog = new THREE.Fog(0xb5d8f0, 120, this.fogFar);
+    scene.fog = new THREE.FogExp2(0xb5d8f0, 1.75 / this.fogFar);
 
-    this.mGround = new THREE.MeshLambertMaterial({ vertexColors: true });
-    this.mDecal = new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+    this.mGround = this.groundMat(new THREE.MeshLambertMaterial({ vertexColors: true }));
+    this.mDecal = this.groundMat(new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }));
+    // oclusão de contato: sombras suaves fixas ao redor de prédios e sob árvores
+    this.mAO = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
     this.mProp = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.mStatic = this.makeStaticMat();
     this.mGlow = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
@@ -60,7 +64,8 @@ export class WorldView {
           float st = vSig.x < 0.5 ? uState.x : vSig.x < 1.5 ? uState.y : vSig.x < 2.5 ? uState.z : uState.w;
           vec3 col = vSig.y < 0.5 ? vec3(1.0, 0.1, 0.06) : vSig.y < 1.5 ? vec3(1.0, 0.72, 0.08) : vec3(0.1, 1.0, 0.3);
           float on = 1.0 - step(0.5, abs(st - vSig.y));
-          gl_FragColor = vec4(col * mix(0.1, 1.4, on), 1.0);
+          gl_FragColor = vec4(col * mix(0.1, 2.6, on), 1.0);
+          #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
     });
@@ -70,20 +75,51 @@ export class WorldView {
     this.setTime(this.tod);
   }
 
+  // asfalto e terreno: grão sutil de perto e brilho do sol baixo sobre superfícies escuras
+  groundMat(m) {
+    m.onBeforeCompile = (sh) => {
+      bindEnv(sh);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWp;\n' + ENV_PARS)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          vec3 gV = cameraPosition - vWp;
+          float gD = length(gV);
+          float gL = dot(diffuseColor.rgb, vec3(0.3, 0.6, 0.1));
+          float dark0 = 1.0 - smoothstep(0.02, 0.09, gL);
+          float grain = (ehash(floor(vWp.xz * 2.5)) - 0.5) * (1.0 - smoothstep(18.0, 60.0, gD));
+          diffuseColor.rgb *= 1.0 + grain * mix(0.05, 0.1, dark0);
+          float dark = 1.0 - smoothstep(0.02, 0.09, gL);
+          vec3 gR = reflect(-gV / gD, vec3(0.0, 1.0, 0.0));
+          float sheen = pow(max(dot(gR, uSunDir), 0.0), 26.0) + 0.35 * pow(max(dot(gR, uSunDir), 0.0), 5.0);
+          totalEmissiveRadiance += uSunCol * sheen * dark * 0.16 + envColor(gR) * dark * 0.035;
+        }`);
+    };
+    m.customProgramCacheKey = () => 'ground';
+    return m;
+  }
+
+  // prédios: janelas que refletem o céu (fresnel + brilho do sol), oclusão na base e luzes à noite
   makeStaticMat() {
     const m = new THREE.MeshLambertMaterial({ vertexColors: true });
-    const uni = this.uni;
     m.onBeforeCompile = (sh) => {
-      sh.uniforms.uNight = uni.night;
+      bindEnv(sh);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec3 binfo;\nvarying vec3 vInfo;\nvarying vec2 vBuv;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvInfo = binfo; vBuv = uv;');
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uNight;\nvarying vec3 vInfo;\nvarying vec2 vBuv;\nfloat bhash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }')
+        .replace('#include <common>', '#include <common>\nvarying vec3 vInfo;\nvarying vec2 vBuv;\n' + ENV_PARS)
         .replace('#include <color_fragment>', `#include <color_fragment>
+        if (vBuv.y > -0.5) {
+          // oclusão ambiente: fachadas escurecem perto do chão
+          diffuseColor.rgb *= mix(0.58, 1.0, smoothstep(0.0, 8.0, vBuv.y));
+        }
         if (vInfo.y > 0.5 && vBuv.y > -0.5) {
           vec2 cell; vec4 wr;
-          if (vInfo.y < 1.5) { cell = vec2(2.8, 3.5); wr = vec4(0.08, 0.92, 0.22, 0.86); }
+          if (vInfo.y < 1.5) { cell = vec2(2.8, 3.5); wr = vec4(0.06, 0.94, 0.2, 0.9); }
           else if (vInfo.y < 2.5) { cell = vec2(3.8, 3.1); wr = vec4(0.22, 0.78, 0.3, 0.78); }
           else if (vInfo.y < 3.5) { cell = vec2(6.5, 5.5); wr = vec4(0.15, 0.85, 0.58, 0.84); }
           else { cell = vec2(4.4, 3.3); wr = vec4(0.3, 0.7, 0.36, 0.74); }
@@ -92,44 +128,75 @@ export class WorldView {
           float win = step(wr.x, f.x) * step(f.x, wr.y) * step(wr.z, f.y) * step(f.y, wr.w);
           float cov = (wr.y - wr.x) * (wr.w - wr.z);
           float aa = clamp(1.6 - max(fwidth(g.x), fwidth(g.y)) * 2.2, 0.0, 1.0);
-          float rnd = bhash(id + floor(vInfo.x * 997.0 + 0.5));
+          float rnd = ehash(id + floor(vInfo.x * 997.0 + 0.5));
           float w = mix(cov, win, aa);
-          vec3 glass = mix(vec3(0.03, 0.06, 0.1), vec3(0.12, 0.22, 0.32), rnd);
-          diffuseColor.rgb = mix(diffuseColor.rgb, glass, w * 0.85);
-          float on = step(rnd, uNight * vInfo.z * 0.75);
-          float lit = mix(cov * uNight * vInfo.z * 0.75, win * on, aa);
-          vec3 lc = mix(vec3(1.0, 0.7, 0.32), vec3(0.6, 0.78, 1.0), step(0.82, fract(rnd * 7.31)));
-          totalEmissiveRadiance += lc * lit * 0.75;
+          // reflexo: cada vidro tem uma leve inclinação própria, o que quebra a uniformidade
+          vec3 bN = normalize(vNormal + vec3(rnd - 0.5, fract(rnd * 5.3) - 0.5, 0.0) * 0.07 * aa);
+          vec3 bV = normalize(vViewPosition);
+          vec3 bR = inverseTransformDirection(reflect(-bV, bN), viewMatrix);
+          float fres = 0.16 + 0.84 * pow(1.0 - clamp(dot(bN, bV), 0.0, 1.0), 3.0);
+          vec3 refl = envColor(bR) * fres + uSunCol * pow(max(dot(bR, uSunDir), 0.0), 70.0) * 1.4;
+          vec3 glass = mix(vec3(0.012, 0.022, 0.04), vec3(0.05, 0.085, 0.13), rnd);
+          diffuseColor.rgb = mix(diffuseColor.rgb, glass, w * 0.92);
+          totalEmissiveRadiance += refl * w * 0.9;
+          // luzes acesas à noite
+          float on = step(rnd, uNight * vInfo.z * 0.55);
+          float lit = mix(cov * uNight * vInfo.z * 0.55, win * on, aa);
+          vec3 lc = mix(vec3(1.0, 0.58, 0.22), vec3(0.5, 0.72, 1.0), step(0.84, fract(rnd * 7.31)));
+          // interior: mais claro embaixo (luz do teto refletida no piso), varia por janela
+          float inner = 0.55 + 0.45 * smoothstep(wr.w, wr.z, f.y);
+          totalEmissiveRadiance += lc * lit * inner * (0.35 + 0.75 * fract(rnd * 13.7));
         }`);
     };
+    m.customProgramCacheKey = () => 'static';
     return m;
   }
 
   // ---------- Céu ----------
   buildSky() {
     this.skyU = {
-      uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() },
+      uTop: ENV.uSkyTop, uHor: ENV.uSkyHor, uSunCol: { value: new THREE.Color() },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uNight: { value: 0 }, uGlow: { value: 1 },
+      uTime: { value: 0 }, uCloud: { value: 1 }, uCloudLit: { value: new THREE.Color() }, uCloudDark: { value: new THREE.Color() },
     };
     const mat = new THREE.ShaderMaterial({
       uniforms: this.skyU, side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
       vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform vec3 uTop, uHor, uSunCol, uSunDir; uniform float uNight, uGlow; varying vec3 vDir;
+      fragmentShader: `uniform vec3 uTop, uHor, uSunCol, uSunDir, uCloudLit, uCloudDark; uniform float uNight, uGlow, uTime, uCloud; varying vec3 vDir;
         float h3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float h2(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+        float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), f.x), mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), f.x), f.y); }
         void main(){
           vec3 d = normalize(vDir);
           float h = max(d.y, 0.0);
-          vec3 col = mix(uHor, uTop, pow(h, 0.5));
-          if (d.y < 0.0) col = mix(uHor, uHor * 0.55, clamp(-d.y * 5.0, 0.0, 1.0));
+          vec3 col = mix(uHor, uTop, pow(h, 0.45));
           float sd = max(dot(d, uSunDir), 0.0);
-          col += uSunCol * (smoothstep(0.9993, 0.9997, sd) * 1.6 + pow(sd, 90.0) * 0.5 * uGlow + pow(sd, 8.0) * 0.22 * uGlow);
+          // espalhamento quente em volta do sol, mais forte junto ao horizonte
+          col += uSunCol * pow(sd, 3.0) * 0.22 * uGlow * (1.0 - h * 0.8);
+          float star = 0.0;
           if (uNight > 0.02 && d.y > 0.0) {
             vec3 p = d * 110.0; vec3 ip = floor(p);
             float r = h3(ip);
-            float star = step(0.992, r) * smoothstep(0.45, 0.1, length(fract(p) - 0.5));
-            col += star * uNight * (0.5 + 0.5 * fract(r * 91.7)) * smoothstep(0.0, 0.25, d.y);
+            star = step(0.992, r) * smoothstep(0.45, 0.1, length(fract(p) - 0.5)) * uNight * (0.6 + 0.8 * fract(r * 91.7)) * smoothstep(0.0, 0.25, d.y);
           }
+          float cl = 0.0;
+          if (uCloud > 0.01 && d.y > 0.015) {
+            vec2 p = d.xz / (d.y + 0.22) * 1.25 + uTime * vec2(0.004, 0.0015);
+            float n = vn(p) * 0.55 + vn(p * 2.13 + 7.1) * 0.3 + vn(p * 4.3 + 3.7) * 0.15;
+            vec2 q = p + normalize(uSunDir.xz + 0.001) * 0.09;
+            float n2 = vn(q) * 0.55 + vn(q * 2.13 + 7.1) * 0.3;
+            cl = smoothstep(0.5, 0.72, n) * smoothstep(0.015, 0.16, d.y) * uCloud;
+            // lado voltado para o sol recebe luz
+            float lit = clamp((n * 0.85 - n2) * 5.0 + 0.55, 0.0, 1.0);
+            vec3 cc = mix(uCloudDark, uCloudLit, lit) + uSunCol * pow(sd, 8.0) * 0.5;
+            col = mix(col, cc, cl * 0.92);
+          }
+          col += star * (1.0 - cl);
+          col += uSunCol * (smoothstep(0.9990, 0.9996, sd) * 9.0 + pow(sd, 260.0) * 1.6 + pow(sd, 28.0) * 0.3 * uGlow) * (1.0 - cl * 0.75);
+          if (d.y < 0.0) col = mix(uHor, uHor * 0.5, clamp(-d.y * 5.0, 0.0, 1.0));
           gl_FragColor = vec4(col, 1.0);
+          #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
     });
@@ -140,29 +207,32 @@ export class WorldView {
 
   buildSea() {
     this.seaU = {
-      uDeep: { value: new THREE.Color(0x1d5a7a) }, uShal: { value: new THREE.Color(0x3fa3a8) }, uHor: { value: new THREE.Color() },
-      uSunCol: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uTime: { value: 0 },
-      uCam: { value: new THREE.Vector3() }, uFog: { value: new THREE.Vector2(120, 560) }, uLight: { value: 1 },
+      uDeep: { value: new THREE.Color(0x0e3d5c) }, uShal: { value: new THREE.Color(0x2f9aa0) },
+      uSkyTop: ENV.uSkyTop, uSkyHor: ENV.uSkyHor, uSunCol: ENV.uSunCol, uSunDir: ENV.uSunDir, uTime: { value: 0 },
+      uCam: { value: new THREE.Vector3() }, uFog: { value: 1.75 / 560 }, uLight: { value: 1 },
     };
     const mat = new THREE.ShaderMaterial({
       uniforms: this.seaU, fog: false,
       vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-      fragmentShader: `uniform vec3 uDeep, uShal, uHor, uSunCol, uSunDir, uCam; uniform float uTime, uLight; uniform vec2 uFog; varying vec3 vW;
+      fragmentShader: `uniform vec3 uDeep, uShal, uSkyTop, uSkyHor, uSunCol, uSunDir, uCam; uniform float uTime, uLight, uFog; varying vec3 vW;
         void main(){
           vec2 p = vW.xz;
           float w = sin(p.x * 0.11 + uTime * 0.9) * sin(p.y * 0.17 - uTime * 1.2) + sin(p.x * 0.031 - p.y * 0.043 + uTime * 0.5);
-          vec3 col = mix(uDeep, uShal, clamp(smoothstep(560.0, 470.0, vW.z) * 0.75 + w * 0.06, 0.0, 1.0)) * uLight;
-          float foam = smoothstep(0.75, 1.0, sin(vW.z * 0.9 - uTime * 1.4 + sin(p.x * 0.07) * 2.0)) * smoothstep(512.0, 486.0, vW.z);
-          col = mix(col, vec3(0.9) * uLight, foam * 0.5);
+          vec3 body = mix(uDeep, uShal, clamp(smoothstep(570.0, 468.0, vW.z) * 0.8 + w * 0.05, 0.0, 1.0)) * uLight;
           vec3 v = normalize(uCam - vW);
-          vec3 n = normalize(vec3(sin(p.x * 0.33 + uTime) * 0.09 + sin(p.y * 0.7 + uTime * 1.7) * 0.05, 1.0, cos(p.y * 0.41 - uTime * 1.3) * 0.09));
-          float spec = pow(max(dot(reflect(-uSunDir, n), v), 0.0), 70.0);
-          col += uSunCol * spec * 0.7;
-          float fres = pow(1.0 - max(v.y, 0.0), 3.0);
-          col = mix(col, uHor, fres * 0.55);
-          float dist = length(vW - uCam);
-          col = mix(col, uHor, smoothstep(uFog.x, uFog.y, dist));
+          vec3 n = normalize(vec3(sin(p.x * 0.33 + uTime) * 0.07 + sin(p.y * 0.7 + uTime * 1.7) * 0.04, 1.0, cos(p.y * 0.41 - uTime * 1.3) * 0.07 + sin(p.x * 0.9 - uTime * 2.1) * 0.03));
+          vec3 r = reflect(-v, n);
+          float fres = 0.03 + 0.97 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
+          vec3 sky = mix(uSkyHor, uSkyTop, pow(max(r.y, 0.0), 0.55));
+          vec3 col = mix(body, sky, fres);
+          // rastro do sol na água
+          col += uSunCol * (pow(max(dot(r, uSunDir), 0.0), 220.0) * 3.0 + pow(max(dot(r, uSunDir), 0.0), 24.0) * 0.12);
+          float foam = smoothstep(0.75, 1.0, sin(vW.z * 0.9 - uTime * 1.4 + sin(p.x * 0.07) * 2.0)) * smoothstep(514.0, 488.0, vW.z);
+          col = mix(col, vec3(0.95) * uLight, foam * 0.55);
+          float fd = length(vW - uCam) * uFog;
+          col = mix(uSkyHor, col, exp(-fd * fd));
           gl_FragColor = vec4(col, 1.0);
+          #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
     });
@@ -205,8 +275,9 @@ export class WorldView {
   // ---------- Qualidade ----------
   setQuality(q) {
     this.radius = q.radius; this.propDist = q.propDist; this.fogFar = q.fogFar;
-    this.scene.fog.near = q.fogFar * 0.3; this.scene.fog.far = q.fogFar;
-    this.seaU.uFog.value.set(q.fogFar * 0.3, q.fogFar);
+    this.scene.fog.density = 1.75 / q.fogFar;
+    this.seaU.uFog.value = 1.75 / q.fogFar;
+    this.skyU.uCloud.value = q.clouds === false ? 0 : 1;
     this.ccx = 1e9;
   }
 
@@ -218,13 +289,14 @@ export class WorldView {
     while (i < TOD.length - 2 && TOD[i + 1].t <= t) i++;
     const a = TOD[i], b = TOD[i + 1];
     const f = clamp((t - a.t) / (b.t - a.t || 1), 0, 1);
-    const top = this.skyU.uTop.value.copy(a.top).lerp(b.top, f);
-    const hor = this.skyU.uHor.value.copy(a.hor).lerp(b.hor, f);
+    // ganhos calibrados para o tone mapping ACES (as cores da tabela são "de tela")
+    const top = ENV.uSkyTop.value.copy(a.top).lerp(b.top, f).multiplyScalar(1.2);
+    const hor = ENV.uSkyHor.value.copy(a.hor).lerp(b.hor, f).multiplyScalar(1.3);
     this.sun.color.copy(a.sun).lerp(b.sun, f);
-    this.sun.intensity = lerp(a.sunI, b.sunI, f);
+    this.sun.intensity = lerp(a.sunI, b.sunI, f) * 2.3;
     this.hemi.color.copy(a.hs).lerp(b.hs, f);
     this.hemi.groundColor.copy(a.hg).lerp(b.hg, f);
-    this.hemi.intensity = lerp(a.hemiI, b.hemiI, f);
+    this.hemi.intensity = lerp(a.hemiI, b.hemiI, f) * 1.55;
     this.scene.fog.color.copy(hor);
     // sol: nasce a leste, se põe sobre o mar (sudoeste)
     const ang = ((t - 0.25) / 0.52) * Math.PI; // 0 no nascer (0.25), PI no pôr (0.77)
@@ -233,16 +305,22 @@ export class WorldView {
     this.night = 1 - smoothstep(-0.1, 0.12, el);
     const isDay = el > -0.08;
     if (isDay) this.lightDir = sd; else this.lightDir = this._moon || (this._moon = new THREE.Vector3(-0.4, 0.75, -0.35).normalize());
+    const day = clamp(el * 5 + 0.3, 0, 1);
     this.skyU.uSunDir.value.copy(sd);
-    this.skyU.uSunCol.value.copy(this.sun.color).multiplyScalar(isDay ? 1 : 0);
+    this.skyU.uSunCol.value.copy(this.sun.color).multiplyScalar(isDay ? 1.7 * day : 0);
     this.skyU.uNight.value = this.night;
-    this.skyU.uGlow.value = 1 + (1 - Math.abs(el)) * 1.5;
-    this.uni.night.value = this.night;
-    this.seaU.uHor.value.copy(hor);
-    this.seaU.uSunDir.value.copy(sd);
-    this.seaU.uSunCol.value.copy(this.sun.color).multiplyScalar(isDay ? clamp(el * 4 + 0.3, 0, 1) : 0);
-    this.seaU.uLight.value = lerp(0.16, 1, 1 - this.night) * (0.75 + 0.25 * clamp(el, 0, 1));
-    this.mGlow.color.setScalar(smoothstep(0.25, 0.8, this.night));
+    this.skyU.uGlow.value = 1 + (1 - Math.abs(el)) * 1.6;
+    const cl = this.skyU.uCloudLit.value.copy(hor).lerp(_white, 0.5).multiplyScalar(0.25 + 0.95 * (1 - this.night));
+    const sc = this.sun.color, sk = 0.45 * day;
+    cl.r += sc.r * sk; cl.g += sc.g * sk; cl.b += sc.b * sk;
+    this.skyU.uCloudDark.value.copy(top).lerp(hor, 0.45).multiplyScalar(0.75);
+    // ambiente dos reflexos (janelas, latarias, asfalto, mar)
+    ENV.uNight.value = this.night;
+    ENV.uSunDir.value.copy(this.lightDir);
+    ENV.uSunCol.value.copy(this.sun.color).multiplyScalar(isDay ? 2.4 * day : 0.3);
+    ENV.uGnd.value.copy(this.hemi.groundColor).multiplyScalar(this.hemi.intensity * 0.22);
+    this.seaU.uLight.value = lerp(0.14, 1, 1 - this.night) * (0.7 + 0.3 * clamp(el, 0, 1)) * 1.4;
+    this.mGlow.color.setScalar(smoothstep(0.25, 0.8, this.night) * 1.6);
     this.topColor = top;
   }
 
@@ -250,6 +328,7 @@ export class WorldView {
     if (!paused) this.setTime(this.tod + (dt / this.dayLen) * (this.night > 0.6 ? 1.7 : 1));
     this.sky.position.copy(cam.position);
     this.seaU.uTime.value = time;
+    this.skyU.uTime.value = time;
     this.seaU.uCam.value.copy(cam.position);
     this.sea.position.x = Math.round(cam.position.x / 200) * 200;
     // luz direcional acompanha a câmera
@@ -317,15 +396,15 @@ export class WorldView {
     const x0 = cx * CHUNK, z0 = cz * CHUNK;
     const group = new THREE.Group();
     const ch = { cx, cz, group, mx: x0 + CHUNK / 2, mz: z0 + CHUNK / 2, near: null, glow: null };
-    const ground = new Geo(), decal = new Geo(), stat = new Geo({ uv: true, info: true }), prop = new Geo(), glow = new Geo();
+    const ground = new Geo(), decal = new Geo(), stat = new Geo({ uv: true, info: true }), prop = new Geo(), glow = new Geo(), ao = new Geo({ alpha: true });
     const sig = { geo: new Geo(), sig: [] };
     this.terrain(ground, x0, z0);
     if (data) {
       for (const b of data.blocks) this.slab(ground, b);
       for (const [e, i] of data.segs) this.road(decal, e, i);
-      for (const b of data.buildings) this.building(stat, b);
+      for (const b of data.buildings) { this.building(stat, b); this.contact(ao, b); }
       for (const r of data.ramps) this.ramp(stat, r);
-      for (const p of data.props) this.prop(p, stat, prop, glow);
+      for (const p of data.props) { this.prop(p, stat, prop, glow); if (p.t === 'tree' || p.t === 'palm') this.blob(ao, p); }
       for (const n of data.nodes) if (n.signal >= 0) this.signalPoles(n, prop, sig);
     }
     const add = (geo, mat, o = {}) => {
@@ -339,10 +418,13 @@ export class WorldView {
     };
     add(ground, this.mGround, { recv: true });
     add(decal, this.mDecal, { recv: true });
+
     add(stat, this.mStatic, { cast: true, recv: true });
-    if (prop.count || sig.geo.count) {
+    if (prop.count || sig.geo.count || ao.count) {
       ch.near = new THREE.Group();
       group.add(ch.near);
+      const aoMesh = add(ao, this.mAO, { parent: ch.near });
+      if (aoMesh) aoMesh.renderOrder = 1;
       add(prop, this.mProp, { parent: ch.near });
       if (sig.geo.count) {
         const sg = sig.geo.build();
@@ -499,6 +581,29 @@ export class WorldView {
     };
     if (nA.signal >= 0 && i === 0) cross(nA, true);
     if (nB.signal >= 0 && i === p.length - 2) cross(nB, false);
+  }
+
+  // sombra de contato em volta da base do prédio (independe do sol: funciona de dia e de noite)
+  contact(g, b) {
+    const w = b.kind === 'house' ? 1.8 : b.kind === 'tower' ? 4.2 : 3;
+    const y = 0.105, a = b.kind === 'house' ? 0.3 : 0.42;
+    const I = [[b.x0, y, b.z0], [b.x1, y, b.z0], [b.x1, y, b.z1], [b.x0, y, b.z1]];
+    const O = [[b.x0 - w, y, b.z0 - w], [b.x1 + w, y, b.z0 - w], [b.x1 + w, y, b.z1 + w], [b.x0 - w, y, b.z1 + w]];
+    const dk = [0, 0, 0, a], zr = [0, 0, 0, 0];
+    for (let k = 0; k < 4; k++) {
+      const n = (k + 1) & 3;
+      g.tri(I[k], I[n], O[n], dk, dk, zr);
+      g.tri(I[k], O[n], O[k], dk, zr, zr);
+    }
+  }
+  // mancha suave sob árvores
+  blob(g, p) {
+    const y = (p.y != null ? p.y + 0.3 : 0.11), r = (p.t === 'palm' ? 2.2 : 2.6) * p.s;
+    const c = [0, 0, 0, 0.3], zr = [0, 0, 0, 0];
+    for (let k = 0; k < 6; k++) {
+      const a0 = (k / 6) * Math.PI * 2, a1 = ((k + 1) / 6) * Math.PI * 2;
+      g.tri([p.x, y, p.z], [p.x + Math.sin(a0) * r, y, p.z + Math.cos(a0) * r], [p.x + Math.sin(a1) * r, y, p.z + Math.cos(a1) * r], c, zr, zr);
+    }
   }
 
   // ---------- Prédios ----------

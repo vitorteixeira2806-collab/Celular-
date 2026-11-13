@@ -2,6 +2,7 @@
 // mais sombras falsas, brilhos de faróis/lanternas e manchas de luz no asfalto.
 import * as THREE from 'three';
 import { carGeometry, detailMat } from './cars.js';
+import { glossy } from '../world/env.js';
 
 const MODELS = ['compact', 'sedan', 'muscle', 'sport', 'super', 'suv', 'pickup', 'police'];
 const _m = new THREE.Matrix4(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _c = new THREE.Color(), _q = new THREE.Quaternion();
@@ -25,7 +26,7 @@ export class Fleet {
   constructor(scene, cap = 44) {
     this.cap = cap;
     this.sets = {};
-    const paintMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const paintMat = glossy(new THREE.MeshLambertMaterial({ color: 0xffffff }), 'paint');
     for (const key of MODELS) {
       const g = carGeometry(key === 'police' ? 'sedan' : key, { withWheels: true, police: key === 'police' });
       const paint = new THREE.InstancedMesh(g.paint, paintMat, cap);
@@ -47,14 +48,19 @@ export class Fleet {
     pg.rotateX(-Math.PI / 2);
     this.pools = new THREE.InstancedMesh(pg, new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -12 }), cap + 4);
     this.pools.setColorAt(0, _c.set(0xffffff));
-    for (const m of [this.shadows, this.glows, this.pools]) { m.count = 0; m.frustumCulled = false; scene.add(m); }
+    // fumaça de pneu e poeira: discos suaves voltados para a câmera
+    const fg = fan(10, [1, 1, 1, 0.42], [1, 1, 1, 0], true);
+    this.puffs = new THREE.InstancedMesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }), 90);
+    this.puffs.setColorAt(0, _c.set(0xffffff));
+    this.puffs.renderOrder = 3;
+    for (const m of [this.shadows, this.glows, this.pools, this.puffs]) { m.count = 0; m.frustumCulled = false; scene.add(m); }
     this.shadows.renderOrder = 1; this.pools.renderOrder = 2; this.glows.renderOrder = 3;
-    this.ns = 0; this.ng = 0; this.np = 0;
+    this.ns = 0; this.ng = 0; this.np = 0; this.nf = 0;
     this.camQ = new THREE.Quaternion();
   }
   begin(cam) {
     for (const k in this.sets) this.sets[k].n = 0;
-    this.ns = this.ng = this.np = 0;
+    this.ns = this.ng = this.np = this.nf = 0;
     this.camQ.copy(cam.quaternion);
   }
   car(key, x, y, z, yaw, pitch, roll, color) {
@@ -80,6 +86,13 @@ export class Fleet {
     this.glows.setMatrixAt(this.ng, _m);
     this.glows.setColorAt(this.ng, _c.set(color).multiplyScalar(intensity));
     this.ng++;
+  }
+  puff(x, y, z, size, r, g, b) {
+    if (this.nf >= 90) return;
+    _m.compose(_p.set(x, y, z), this.camQ, _s.set(size, size, size));
+    this.puffs.setMatrixAt(this.nf, _m);
+    this.puffs.setColorAt(this.nf, _c.setRGB(r, g, b));
+    this.nf++;
   }
   pool(x, y, z, yaw, len, wid, intensity) {
     if (this.np >= this.cap + 4) return;
@@ -116,6 +129,7 @@ export class Fleet {
     }
     this.shadows.count = this.ns; this.shadows.instanceMatrix.needsUpdate = true;
     this.glows.count = this.ng; this.glows.instanceMatrix.needsUpdate = true; if (this.glows.instanceColor) this.glows.instanceColor.needsUpdate = true;
+    this.puffs.count = this.nf; this.puffs.instanceMatrix.needsUpdate = true; if (this.puffs.instanceColor) this.puffs.instanceColor.needsUpdate = true;
     this.pools.count = this.np; this.pools.instanceMatrix.needsUpdate = true; if (this.pools.instanceColor) this.pools.instanceColor.needsUpdate = true;
   }
 }

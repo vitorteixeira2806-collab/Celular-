@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { carGeometry, detailMat } from './cars.js';
 import { hash2 } from '../core/util.js';
+import { glossy } from '../world/env.js';
 
 export class CarView {
   constructor() {
@@ -9,7 +10,7 @@ export class CarView {
     this.group.rotation.order = 'YXZ';
     this.body = new THREE.Group();
     this.group.add(this.body);
-    this.paintMat = new THREE.MeshPhongMaterial({ color: 0xffffff, vertexColors: true, shininess: 70, specular: 0x444444 });
+    this.paintMat = glossy(new THREE.MeshPhongMaterial({ color: 0xffffff, vertexColors: true, shininess: 90, specular: 0x222222 }), 'paint');
     this.wheels = [];
     this.spin = 0;
     this.model = null;

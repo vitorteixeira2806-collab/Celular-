@@ -9,6 +9,9 @@ import { WORLD } from '../world/map.js';
 
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 const STATIONS = ['Onda FM', 'Brasa 99', 'Maré Calma'];
+// ícones desenhados (um traço só), em vez de glifos de texto
+const CH_L = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
+const CH_R = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
 
 export class UI {
   constructor(root, game) {
@@ -191,7 +194,7 @@ export class UI {
         <span class="medal">${b.pos ? b.pos + 'º lugar' : 'Sem resultado'}${md ? ' · ' + MEDAL[md] : ''}</span></button>`;
     };
     const b = g.save.best[sel.id] || {};
-    return `<div class="scr solid"><div class="bar"><button class="btn sm" data-act="back">‹ VOLTAR</button><h1>CORRIDAS</h1><span class="sp"></span><span class="money">${fmtMoney(g.save.money)}</span></div>
+    return `<div class="scr solid"><div class="bar"><button class="btn sm" data-act="back">${CH_L}VOLTAR</button><h1>CORRIDAS</h1><span class="sp"></span><span class="money">${fmtMoney(g.save.money)}</span></div>
       <div class="grow scroll"><div class="ev-grid">${evs.map(card).join('')}</div></div>
       <div class="ev-info"><div class="txt"><b>${sel.name}</b> — ${sel.desc}<br>
         Prêmio ${fmtMoney(sel.prize)} · Melhor corrida ${fmtTime(b.race)} · Relógio ${fmtTime(b.tt)} (ouro ${fmtTime(sel.gold)})</div>
@@ -220,11 +223,11 @@ export class UI {
         ${this.sel.tab === 'up' ? upHtml : paintHtml}`;
     }
     return `<div class="scr clear" style="background:linear-gradient(90deg, rgba(8,11,18,.92) 0%, rgba(8,11,18,.8) 38%, rgba(8,11,18,0) 62%)">
-      <div class="bar"><button class="btn sm" data-act="back">‹ SAIR</button><h1>OFICINA</h1><span class="sp"></span><span class="money">${fmtMoney(s.money)}</span></div>
+      <div class="bar"><button class="btn sm" data-act="back">${CH_L}SAIR</button><h1>OFICINA</h1><span class="sp"></span><span class="money">${fmtMoney(s.money)}</span></div>
       <div class="gar"><div class="gar-left scroll">
-        <div class="car-nav"><button class="btn sm" data-act="car" data-v="-1" aria-label="Carro anterior">‹</button>
+        <div class="car-nav"><button class="btn sm" data-act="car" data-v="-1" aria-label="Carro anterior">${CH_L}</button>
           <div class="nm"><b>${car.name}</b><small>${car.cls}${own ? '' : ' · ' + fmtMoney(car.price)}</small></div>
-          <button class="btn sm" data-act="car" data-v="1" aria-label="Próximo carro">›</button></div>
+          <button class="btn sm" data-act="car" data-v="1" aria-label="Próximo carro">${CH_R}</button></div>
         ${bar('Velocidade', sp.top / 86)}${bar('Aceleração', sp.accel / 15.5)}${bar('Controle', (sp.grip * sp.steer) / 1.7)}
         <div class="foot">${Math.round(sp.top * 3.6)} km/h · 0–100 em ${(27.8 / sp.accel * 1.12).toFixed(1)} s</div>
         ${body}
@@ -252,7 +255,7 @@ export class UI {
     const tog = (k) => `<button class="tog ${o[k] ? 'on' : ''}" data-act="tog" data-v="${k}" role="switch" aria-checked="${!!o[k]}"></button>`;
     const rng = (k, min, max, step) => `<input type="range" min="${min}" max="${max}" step="${step}" value="${o[k]}" data-opt="${k}">`;
     const row = (label, ctl, hint) => `<div class="opt"><label>${label}${hint ? `<small>${hint}</small>` : ''}</label>${ctl}</div>`;
-    return `<div class="scr solid"><div class="bar"><button class="btn sm" data-act="back">‹ VOLTAR</button><h1>OPÇÕES</h1></div>
+    return `<div class="scr solid"><div class="bar"><button class="btn sm" data-act="back">${CH_L}VOLTAR</button><h1>OPÇÕES</h1></div>
       <div class="grow scroll"><div class="opt-grid">
         ${row('Direção', seg('control', [['buttons', 'Botões'], ['wheel', 'Volante'], ['tilt', 'Inclinar']], o.control))}
         ${row('Aceleração automática', tog('autoGas'), 'Jogue só com direção e freio')}
@@ -302,7 +305,7 @@ export class UI {
   // ---------- Mapa em tela cheia (arrastar e pinça) ----------
   map() {
     return `<div class="scr solid" style="padding:0"><canvas id="mapcv"></canvas>
-      <div class="map-bar"><button class="btn sm" data-act="resume">‹ FECHAR</button>
+      <div class="map-bar"><button class="btn sm" data-act="resume">${CH_L}FECHAR</button>
         <div class="legend"><span><i style="background:#ff8a1f"></i>Corrida</span><span><i style="background:#39d0ff"></i>Oficina</span><span><i style="background:#ff3b3b"></i>Fuga</span><span><i style="background:#c56bff"></i>Destino</span></div>
         <span class="sp" style="flex:1"></span><button class="btn sm" data-act="clearwp">LIMPAR DESTINO</button></div>
       <div class="map-hint">Arraste para mover · pinça para zoom · toque para marcar destino</div></div>`;
