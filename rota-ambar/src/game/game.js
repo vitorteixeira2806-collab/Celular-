@@ -2,7 +2,9 @@
 import * as THREE from 'three';
 import { generateMap } from '../world/map.js';
 import { WorldView } from '../world/worldview.js';
-import { Vehicle } from '../vehicles/vehicle.js';
+import { Vehicle, collideCars } from '../vehicles/vehicle.js';
+import { Fleet } from '../vehicles/fleet.js';
+import { Traffic } from './traffic.js';
 import { CarView } from '../vehicles/carview.js';
 import { carById, effectiveSpec } from '../vehicles/cars.js';
 import { ChaseCamera } from './camera.js';
@@ -63,6 +65,11 @@ export class Game {
     this.input.onKey = (code) => this.onKey(code);
 
     this.initWorld();
+    this.fleet = new Fleet(this.scene);
+    this.traffic = new Traffic(this.map);
+    this.traffic.setDensity(this.opt.traffic);
+    this.dyn = []; this.bodies = [];
+    this.camDir = { x: 0, z: 1 };
     this.resize();
     addEventListener('resize', () => this.resize());
     addEventListener('orientationchange', () => setTimeout(() => this.resize(), 250));
@@ -196,13 +203,53 @@ export class Game {
     if (this.state === 'roam' || this.state === 'race') this.input.read(p.in);
     else { p.in.throttle = 0; p.in.brake = 1; p.in.steer = 0; p.in.handbrake = true; p.in.nitro = false; }
     p.step(dt, this.map);
+
+    // corpos dinâmicos (jogador, rivais, polícia) e trânsito
+    const dyn = this.dyn, bodies = this.bodies, tc = this.traffic.cars;
+    dyn.length = 0; bodies.length = 0;
+    dyn.push(p);
+    this.collectDynamics(dyn);
+    for (let i = 0; i < dyn.length; i++) bodies.push(dyn[i]);
+    for (let i = 0; i < tc.length; i++) if (tc[i].active) bodies.push(tc[i]);
+    this.stepSystems(dt);
+    this.traffic.step(dt, this.time, bodies, p, this.camDir);
+    for (let i = 0; i < dyn.length; i++) {
+      for (let j = i + 1; j < dyn.length; j++) collideCars(dyn[i], dyn[j]);
+      for (let j = 0; j < tc.length; j++) if (tc[j].active) collideCars(dyn[i], tc[j]);
+    }
+    for (let i = 0; i < tc.length; i++) {
+      const c = tc[i];
+      if (!c.active || c.mode !== 2) continue;
+      for (let j = 0; j < tc.length; j++) if (j !== i && tc[j].active) collideCars(c, tc[j]);
+    }
   }
+
+  // ganchos preenchidos pelos modos de jogo (rivais, polícia)
+  collectDynamics() {}
+  stepSystems() {}
+  drawSystems() {}
 
   render(dt) {
     const p = this.player;
     this.view.update(p, dt);
     this.cam.update(dt, p, this.map, this.view.dims, this.opt.shake);
     this.world.update(dt, this.cam.cam, this.time, this.paused);
+    this.camDir.x = Math.sin(this.cam.yaw); this.camDir.z = Math.cos(this.cam.yaw);
+    // frota instanciada + efeitos
+    const f = this.fleet, night = this.world.night, map = this.map;
+    f.begin(this.cam.cam);
+    for (const c of this.traffic.cars) {
+      if (!c.active) continue;
+      f.car(c.key, c.x, c.y, c.z, c.yaw, c.pitch, 0, c.color);
+      f.shadow(c.x, c.y, c.z, c.yaw, c.pitch, c.halfLen, c.halfWid);
+      const dx = c.x - p.x, dz = c.z - p.z;
+      if (dx * dx + dz * dz < 190 * 190) f.carLights(c, c.dims, night, c.mode === 0 && c.speed < 2);
+    }
+    this.drawSystems(f, night);
+    const gy = p.grounded ? p.y : map.heightAt(p.x, p.z);
+    f.shadow(p.x, gy, p.z, p.yaw, p.grounded ? p.pitch : 0, p.halfLen, p.halfWid, clamp(1 - (p.y - gy) * 0.07, 0.45, 1));
+    f.carLights(p, this.view.dims, night, p.in.brake > 0 && p.vf > 1);
+    f.end();
     this.autoQuality(dt);
     this.renderer.render(this.scene, this.cam.cam);
   }
