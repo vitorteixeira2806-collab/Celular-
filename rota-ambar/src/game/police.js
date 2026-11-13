@@ -363,7 +363,7 @@ export class Police {
         const big = 0.42 + night * 0.3;
         f.glow(v.x + cs * 0.3, y, v.z - sn * 0.3, on ? big : 0.2, 0x2f6bff, on ? 1.1 : 0.35);
         f.glow(v.x - cs * 0.3, y, v.z + sn * 0.3, on ? 0.2 : big, 0xff2a1a, on ? 0.35 : 1.1);
-        if (night > 0.3) f.pool(v.x, v.y, v.z, v.yaw, 7, 7, 0.25 * night);
+        if (night > 0.3) f.pool(v.x, v.y, v.z, v.yaw, 7, 7, 0.12 * night);
       }
     };
     for (const u of this.units) one(u.v, u.phase, this.stars > 0);

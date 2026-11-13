@@ -36,8 +36,8 @@ export function glossy(mat, mode) {
         float gF = pow(1.0 - clamp(dot(normal, gV), 0.0, 1.0), 4.0);
         ${mode === 'paint'
     ? 'float gK = 0.04 + 0.3 * gF; float gS = 1.1;'
-    : 'float gG = step(vColor.b, 0.06) * step(2.0 * vColor.r, vColor.b); float gK = (0.22 + 0.78 * gF) * gG; float gS = 1.6 * gG;'}
-        totalEmissiveRadiance += envColor(gR) * gK * 0.85 + uSunCol * pow(max(dot(gR, uSunDir), 0.0), 140.0) * gS;
+    : 'float gG = step(vColor.b, 0.06) * step(2.0 * vColor.r, vColor.b); float gK = (0.22 + 0.78 * gF) * gG; float gS = 0.7 * gG;'}
+        totalEmissiveRadiance += envColor(gR) * gK * 0.85 + uSunCol * pow(max(dot(gR, uSunDir), 0.0), 220.0) * gS;
         diffuseColor.rgb *= 1.0 - gK * 0.45;
       }`);
   };

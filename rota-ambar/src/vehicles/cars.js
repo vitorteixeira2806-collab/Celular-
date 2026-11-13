@@ -28,160 +28,242 @@ export function effectiveSpec(car, up) {
 }
 export const upgradeCost = (car, kind, level) => Math.round(((car.price || 3000) * 0.11 + 500) * (level + 1) * (kind === 'engine' ? 1.25 : 1) / 50) * 50;
 
-// dimensões e perfil de cada carroceria
+// ---------------------------------------------------------------------------
+// Carrocerias modernas: superfície contínua gerada por seções transversais ("loft"),
+// com normais suaves, vidros rentes, faróis finos e rodas de liga com raios.
+// Todos os desenhos são originais; cada modelo é só um conjunto de medidas.
+// cab = [base do vidro traseiro, início do teto, fim do teto, base do para-brisa] em fração do comprimento.
+const SILVER = 0xc6ccd4, GUN = 0x3b3f46, BLACKRIM = 0x17191c;
 const M = {
-  compact: { len: 3.85, wid: 1.72, ride: 0.2, wr: 0.31, wb: 2.45, belt: 0.88, roof: 1.44, hoodF: 0.72, deck: 0.9, hood: 0.95, deckLen: 0.12, wsRake: 0.55, rearRake: 0.38 },
-  sedan: { len: 4.5, wid: 1.8, ride: 0.2, wr: 0.33, wb: 2.7, belt: 0.88, roof: 1.4, hoodF: 0.72, deck: 0.86, hood: 1.25, deckLen: 0.85, wsRake: 0.6, rearRake: 0.55 },
-  muscle: { len: 4.8, wid: 1.92, ride: 0.19, wr: 0.36, wb: 2.85, belt: 0.86, roof: 1.3, hoodF: 0.76, deck: 0.84, hood: 1.75, deckLen: 0.8, wsRake: 0.55, rearRake: 0.75, scoop: 1, spoiler: 0.12, stripes: 1 },
-  sport: { len: 4.4, wid: 1.9, ride: 0.15, wr: 0.34, wb: 2.6, belt: 0.78, roof: 1.2, hoodF: 0.56, deck: 0.78, hood: 1.4, deckLen: 0.45, wsRake: 0.75, rearRake: 0.95, spoiler: 0.2 },
-  super: { len: 4.55, wid: 2.0, ride: 0.12, wr: 0.35, wb: 2.7, belt: 0.7, roof: 1.08, hoodF: 0.42, deck: 0.78, hood: 1.15, deckLen: 0.75, wsRake: 0.95, rearRake: 0.9, spoiler: 0.34, wing: 1, intakes: 1 },
-  suv: { len: 4.7, wid: 1.95, ride: 0.3, wr: 0.39, wb: 2.8, belt: 1.08, roof: 1.78, hoodF: 0.98, deck: 1.1, hood: 1.2, deckLen: 0.1, wsRake: 0.45, rearRake: 0.25, rails: 1 },
-  pickup: { len: 5.2, wid: 1.95, ride: 0.32, wr: 0.4, wb: 3.2, belt: 1.1, roof: 1.78, hoodF: 1.0, deck: 1.1, hood: 1.3, deckLen: 1.95, wsRake: 0.4, rearRake: 0.12, bed: 1 },
+  compact: { doors4: 1, len: 4.05, wid: 1.78, ride: 0.17, wr: 0.32, wb: 2.56, tailH: 0.96, deckH: 1.02, beltR: 0.93, beltF: 0.84, cowlH: 0.9, noseH: 0.69, roofH: 1.46, cab: [-0.455, -0.31, 0.05, 0.25], roofK: 0.76, noseT: 0.2, tailT: 0.1, spokes: 5, rim: SILVER, lip: 0.06 },
+  sedan: { doors4: 1, len: 4.6, wid: 1.84, ride: 0.17, wr: 0.33, wb: 2.75, tailH: 0.9, deckH: 0.97, beltR: 0.92, beltF: 0.84, cowlH: 0.9, noseH: 0.68, roofH: 1.41, cab: [-0.31, -0.19, 0.1, 0.27], roofK: 0.74, noseT: 0.2, tailT: 0.14, spokes: 7, rim: SILVER },
+  muscle: { len: 4.85, wid: 1.95, ride: 0.16, wr: 0.36, wb: 2.86, tailH: 0.9, deckH: 0.99, beltR: 0.94, beltF: 0.86, cowlH: 0.93, noseH: 0.75, roofH: 1.31, cab: [-0.35, -0.18, 0.04, 0.19], roofK: 0.72, noseT: 0.13, tailT: 0.12, spokes: 5, rim: GUN, stripes: 0x101216, lip: 0.1, splitter: 1, wide: 1 },
+  sport: { len: 4.45, wid: 1.93, ride: 0.13, wr: 0.345, wb: 2.62, tailH: 0.84, deckH: 0.9, beltR: 0.84, beltF: 0.76, cowlH: 0.83, noseH: 0.57, roofH: 1.22, cab: [-0.36, -0.17, 0.04, 0.21], roofK: 0.7, noseT: 0.24, tailT: 0.16, spokes: 6, rim: GUN, bar: 1, lip: 0.07, splitter: 1 },
+  super: { len: 4.62, wid: 2.03, ride: 0.11, wr: 0.35, wb: 2.72, tailH: 0.8, deckH: 0.86, beltR: 0.8, beltF: 0.66, cowlH: 0.72, noseH: 0.45, roofH: 1.1, cab: [-0.17, -0.06, 0.1, 0.3], roofK: 0.66, noseT: 0.26, tailT: 0.1, spokes: 8, rim: BLACKRIM, bar: 1, wing: 0.3, splitter: 1, intakes: 1, wide: 1 },
+  suv: { doors4: 1, len: 4.75, wid: 1.97, ride: 0.27, wr: 0.4, wb: 2.86, tailH: 1.1, deckH: 1.16, beltR: 1.12, beltF: 1.06, cowlH: 1.14, noseH: 0.97, roofH: 1.75, cab: [-0.47, -0.37, 0.07, 0.25], roofK: 0.8, noseT: 0.14, tailT: 0.08, spokes: 6, rim: SILVER, clad: 1, rails: 1, bar: 1 },
+  pickup: { doors4: 1, len: 5.3, wid: 1.99, ride: 0.3, wr: 0.41, wb: 3.28, tailH: 1.1, deckH: 1.12, beltR: 1.1, beltF: 1.08, cowlH: 1.17, noseH: 1.02, roofH: 1.8, cab: [-0.1, -0.06, 0.16, 0.29], roofK: 0.82, noseT: 0.12, tailT: 0.05, spokes: 6, rim: GUN, clad: 1, bed: 1 },
 };
+for (const k in M) { const m = M[k]; m.belt = m.beltF; m.roof = m.roofH; m.hoodF = Math.min(m.beltF, m.noseH - 0.07) - 0.02; m.deck = m.beltR + 0.04; }
 export const MODEL_DIMS = M;
 
-const GLASS = C(0x18222e), TIRE = C(0x121416), HUB = C(0x9aa3ad), TRIM = C(0x1e2226), HEAD = C(0xfff4cc), TAIL = C(0xc8261b), WHITE = [1, 1, 1], CHROME = C(0xaab2ba);
+const GLASS = C(0x18222e), TIRE = C(0x0f1012), TRIM = C(0x1b1e22), HEAD = C(0xfff6d8), DRL = C(0xdff2ff), TAIL = C(0xd42418), WHITE = [1, 1, 1], PLATE = C(0xd9d9d2), BED = C(0x0d0e10);
+const lerp = (a, b, t) => a + (b - a) * t;
+const cl01 = (t) => (t < 0 ? 0 : t > 1 ? 1 : t);
 
-function wheelGeo(g, x, y, z, R, W, side) {
-  const seg = 10;
+// triângulo/quad com a face voltada para a direção (dx,dy,dz)
+function triDir(g, a, b, c, col, dx, dy, dz) {
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+  const d = (uy * vz - uz * vy) * dx + (uz * vx - ux * vz) * dy + (ux * vy - uy * vx) * dz;
+  if (d >= 0) g.tri(a, b, c, col); else g.tri(a, c, b, col);
+}
+function quadDir(g, a, b, c, d, col, dx, dy, dz) { triDir(g, a, b, c, col, dx, dy, dz); triDir(g, a, c, d, col, dx, dy, dz); }
+
+// roda de liga: pneu, aro e raios. side = +1 quando a face externa aponta para +x
+function wheelGeo(g, x, y, z, R, W, side, m, seg = 14) {
+  const xi = x - (W / 2) * side, xo = x + (W / 2) * side;
+  const rim = C(m.rim), rimDark = C(0x0b0c0e), hub = C(0x8d949c);
+  const pt = (px, r, a) => [px, y + Math.cos(a) * r, z + Math.sin(a) * r];
+  const rr = R * 0.7;
   for (let i = 0; i < seg; i++) {
-    const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
-    const y0 = y + Math.cos(a0) * R, z0 = z + Math.sin(a0) * R, y1 = y + Math.cos(a1) * R, z1 = z + Math.sin(a1) * R;
-    const xi = x - W / 2, xo = x + W / 2;
-    // banda de rodagem (normal para fora independe da ordem; usamos dupla verificação via side)
-    g.quad([xo, y0, z0], [xi, y0, z0], [xi, y1, z1], [xo, y1, z1], TIRE);
-    const xs = side > 0 ? xo : xi;
-    const hy0 = y + Math.cos(a0) * R * 0.58, hz0 = z + Math.sin(a0) * R * 0.58, hy1 = y + Math.cos(a1) * R * 0.58, hz1 = z + Math.sin(a1) * R * 0.58;
-    if (side < 0) {
-      g.quad([xs, y0, z0], [xs, hy0, hz0], [xs, hy1, hz1], [xs, y1, z1], TIRE);
-      g.tri([xs - 0.02, y, z], [xs, hy1, hz1], [xs, hy0, hz0], HUB);
-    } else {
-      g.quad([xs, y1, z1], [xs, hy1, hz1], [xs, hy0, hz0], [xs, y0, z0], TIRE);
-      g.tri([xs + 0.02, y, z], [xs, hy0, hz0], [xs, hy1, hz1], HUB);
-    }
+    const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2, am = (a0 + a1) / 2;
+    const ry = Math.cos(am), rz = Math.sin(am);
+    // banda de rodagem com ombro chanfrado
+    quadDir(g, pt(xi, R, a0), pt(xo - 0.035 * side, R, a0), pt(xo - 0.035 * side, R, a1), pt(xi, R, a1), TIRE, 0, ry, rz);
+    quadDir(g, pt(xo - 0.035 * side, R, a0), pt(xo, R - 0.035, a0), pt(xo, R - 0.035, a1), pt(xo - 0.035 * side, R, a1), TIRE, side * 0.7, ry, rz);
+    quadDir(g, pt(xo, R - 0.035, a0), pt(xo, rr, a0), pt(xo, rr, a1), pt(xo, R - 0.035, a1), TIRE, side, 0, 0);
+    triDir(g, [xi, y, z], pt(xi, R, a0), pt(xi, R, a1), rimDark, -side, 0, 0);
+    // aro: borda, fundo escuro e cubo
+    quadDir(g, pt(xo, rr, a0), pt(xo - 0.012 * side, rr * 0.88, a0), pt(xo - 0.012 * side, rr * 0.88, a1), pt(xo, rr, a1), rim, side, -ry * 0.6, -rz * 0.6);
+    triDir(g, [xo - 0.06 * side, y, z], pt(xo - 0.06 * side, rr * 0.9, a0), pt(xo - 0.06 * side, rr * 0.9, a1), rimDark, side, 0, 0);
+    triDir(g, [xo - 0.012 * side, y, z], pt(xo - 0.015 * side, R * 0.17, a0), pt(xo - 0.015 * side, R * 0.17, a1), hub, side, 0, 0);
+  }
+  // raios
+  const n = m.spokes, xs = xo - 0.02 * side;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2, wi = 0.34, wo = (Math.PI / n) * 0.42;
+    quadDir(g, pt(xs, R * 0.15, a - wi), pt(xs, rr * 0.9, a - wo), pt(xs, rr * 0.9, a + wo), pt(xs, R * 0.15, a + wi), rim, side, 0, 0);
   }
 }
 
 const _cache = new Map();
 
-// Retorna { paint, detail, wheel, wheelPos, dims } — geometrias compartilhadas (não modificar; clone para deformar)
+// Retorna { paint, detail, wheel, wheelPos, dims } — geometrias compartilhadas (clone para deformar)
 export function carGeometry(model, opts = {}) {
   const key = model + (opts.police ? '_p' : '') + (opts.withWheels ? '_w' : '');
   if (_cache.has(key)) return _cache.get(key);
   const m = M[model];
   const P = new Geo(), D = new Geo();
-  const w = m.wid / 2, zf = m.len / 2, zr = -m.len / 2;
-  const y0 = m.ride;
-  const cf0 = zf - m.hood, cf1 = cf0 - m.wsRake, cr0 = zr + m.deckLen, cr1 = cr0 + m.rearRake;
-  // perfil lateral do casco (z,y), de trás-baixo até frente-baixo
-  const prof = [
-    [zr + 0.06, y0], [zr, y0 + 0.3], [zr + 0.04, m.deck], [cr0, m.belt], [cf0, m.belt],
-    [zf - 0.18, m.hoodF], [zf, m.hoodF - 0.2], [zf - 0.03, y0 + 0.02],
-  ];
-  const wb = w * 0.93; // largura na base
-  const widthAt = (y) => (y <= y0 + 0.05 ? wb : w);
-  // tampos e faces frente/trás
-  for (let i = 0; i < prof.length - 1; i++) {
-    const [za, ya] = prof[i], [zb, yb] = prof[i + 1];
-    const wa = widthAt(ya), wb2 = widthAt(yb);
-    P.quad([wa, ya, za], [-wa, ya, za], [-wb2, yb, zb], [wb2, yb, zb], WHITE);
-  }
-  // laterais (leque a partir do centro)
-  const cy = (y0 + m.belt) / 2;
-  for (let i = 0; i < prof.length; i++) {
-    const [za, ya] = prof[i], [zb, yb] = prof[(i + 1) % prof.length];
-    const wa = widthAt(ya), wb2 = widthAt(yb);
-    P.tri([w, cy, 0], [wa, ya, za], [wb2, yb, zb], WHITE);
-    P.tri([-w, cy, 0], [-wb2, yb, zb], [-wa, ya, za], WHITE);
-  }
-  // fundo
-  D.quad([-wb, y0, zr + 0.06], [wb, y0, zr + 0.06], [wb, y0 + 0.02, zf - 0.03], [-wb, y0 + 0.02, zf - 0.03], TRIM);
+  const L = m.len, zr = -L / 2, zf = L / 2, W = m.wid / 2;
+  const [cA, cB, cC, cD] = m.cab.map((f) => f * L);
+  const gA = lerp(cA, cB, 0.4), gD = lerp(cD, cC, 0.34); // limites dos vidros laterais
+  const bp = m.doors4 ? lerp(gA, gD, 0.5) : 1e9;           // coluna central (4 portas)
+  const crit = m.doors4 ? [cA, cB, cC, cD, gA, gD, bp - 0.06, bp + 0.06] : [cA, cB, cC, cD, gA, gD];
 
-  // cabine
-  const wB = w * 0.93, wT = w * 0.74;
-  const A = [wB, m.belt, cr0], B = [wB, m.belt, cf0], Cc = [wT, m.roof, cf1], Dd = [wT, m.roof, cr1];
-  const A2 = [-wB, m.belt, cr0], B2 = [-wB, m.belt, cf0], C2 = [-wT, m.roof, cf1], D2 = [-wT, m.roof, cr1];
-  D.quad(B2, B, Cc, C2, GLASS); // para-brisa
-  D.quad(A, A2, D2, Dd, GLASS); // vidro traseiro
-  D.quad(B, A, Dd, Cc, GLASS); // lateral direita (+x)
-  D.quad(A2, B2, C2, D2, GLASS);
-  P.quad(Dd, D2, C2, Cc, WHITE); // teto
-  // colunas pintadas (finas) nas laterais
-  const pil = (za, zb, ta, tb) => {
-    P.quad([wB + 0.012, m.belt, zb], [wB + 0.012, m.belt, za], [wT + 0.012, m.roof, ta], [wT + 0.012, m.roof, tb], WHITE);
-    P.quad([-wB - 0.012, m.belt, za], [-wB - 0.012, m.belt, zb], [-wT - 0.012, m.roof, tb], [-wT - 0.012, m.roof, ta], WHITE);
+  // linha superior (capô, para-brisa, teto, vidro traseiro, tampa)
+  const topY = (z) => {
+    if (z < cA) return lerp(m.tailH, m.deckH, cl01((z - zr) / (cA - zr)) ** 0.7);
+    if (z < cB) return lerp(m.deckH, m.roofH, 1 - (1 - (z - cA) / (cB - cA)) ** 1.5);
+    if (z <= cC) return m.roofH + 0.022 * Math.sin(((z - cB) / (cC - cB)) * Math.PI);
+    if (z < cD) return lerp(m.roofH, m.cowlH, ((z - cC) / (cD - cC)) ** 1.2);
+    return lerp(m.cowlH, m.noseH, ((z - cD) / (zf - cD)) ** 1.7);
   };
-  const midB = (cr0 + cf0) / 2, midT = (cr1 + cf1) / 2;
-  pil(midB - 0.06, midB + 0.06, midT - 0.06, midT + 0.06);
-  if (model === 'suv' || model === 'compact') pil(cr0, cr0 + 0.18, cr1, cr1 + 0.14);
+  const endK = (z) => { const e = Math.abs(z) / (L / 2); return e < 0.56 ? 0 : (e - 0.56) / 0.44; };
+  const halfW = (z) => { const k = endK(z); return W * (1 - (z > 0 ? m.noseT : m.tailT) * k * k) * (1 - 0.07 * k ** 9); };
+  const botY = (z) => { const k = endK(z); return m.ride + (z > 0 ? 0.06 : 0.1) * k * k; };
+  const beltY = (z) => Math.min(lerp(m.beltR, m.beltF, (z - zr) / L), topY(z) - 0.07);
+  const cabK = (z) => (z <= cA || z >= cD ? 0 : z < cB ? (z - cA) / (cB - cA) : z <= cC ? 1 : 1 - (z - cC) / (cD - cC));
 
-  // faróis e lanternas
-  const hy = m.hoodF - 0.1;
-  D.box(w * 0.5, hy - 0.09, zf - 0.1, w * 0.92, hy + 0.05, zf + 0.012, HEAD);
-  D.box(-w * 0.92, hy - 0.09, zf - 0.1, -w * 0.5, hy + 0.05, zf + 0.012, HEAD);
-  D.box(-w * 0.42, hy - 0.2, zf - 0.1, w * 0.42, hy - 0.02, zf + 0.008, TRIM); // grade
-  const ty = m.deck - 0.14;
-  D.box(w * 0.48, ty - 0.08, zr - 0.012, w * 0.94, ty + 0.06, zr + 0.1, TAIL);
-  D.box(-w * 0.94, ty - 0.08, zr - 0.012, -w * 0.48, ty + 0.06, zr + 0.1, TAIL);
-  // para-choques
-  D.box(-w * 0.97, y0, zf - 0.12, w * 0.97, y0 + 0.2, zf + 0.03, TRIM);
-  D.box(-w * 0.97, y0, zr - 0.03, w * 0.97, y0 + 0.22, zr + 0.12, TRIM);
-  // saias laterais
-  D.box(w * 0.94, y0, -m.wb / 2 + m.wr + 0.1, w + 0.01, y0 + 0.16, m.wb / 2 - m.wr - 0.1, TRIM);
-  D.box(-w - 0.01, y0, -m.wb / 2 + m.wr + 0.1, -w * 0.94, y0 + 0.16, m.wb / 2 - m.wr - 0.1, TRIM);
+  // estações ao longo do comprimento (mais densas nas pontas, e exatamente nas quebras da cabine)
+  const zs = [];
+  const NS = 20;
+  for (let i = 0; i <= NS; i++) zs.push((-Math.cos((i / NS) * Math.PI) * L) / 2);
+  for (const v of crit) zs.push(v);
+  zs.sort((a, b) => a - b);
+  const st = [zs[0]];
+  for (let i = 1; i < zs.length; i++) {
+    const v = zs[i], isCrit = crit.includes(v);
+    if (v - st[st.length - 1] < 0.07) { if (isCrit && !crit.includes(st[st.length - 1])) st[st.length - 1] = v; else if (isCrit) st.push(v); continue; }
+    st.push(v);
+  }
+  st[0] = zr; st[st.length - 1] = zf;
 
-  if (m.scoop) P.box(-0.28, m.belt - 0.04, cf0 + 0.35, 0.28, m.belt + 0.09, cf0 + 1.15, WHITE);
-  if (m.stripes) {
-    for (const sx of [-0.2, 0.2]) {
-      D.quad([sx + 0.09, m.belt + 0.095, cf0 + 0.35], [sx - 0.09, m.belt + 0.095, cf0 + 0.35], [sx - 0.09, m.belt + 0.095, cf0 + 1.15], [sx + 0.09, m.belt + 0.095, cf0 + 1.15], C(0xf4f4f0));
-      D.quad([sx + 0.09, m.roof + 0.01, cr1], [sx - 0.09, m.roof + 0.01, cr1], [sx - 0.09, m.roof + 0.01, cf1], [sx + 0.09, m.roof + 0.01, cf1], C(0xf4f4f0));
+  // anel de cada estação (metade direita, x >= 0): fundo, soleira, lateral, ombro, borda do teto/capô, topo
+  const NR = 7;
+  const ring = st.map((z) => {
+    const w = halfW(z), yb = botY(z), ys = beltY(z), yt = topY(z), k = cabK(z);
+    const we = lerp(w * (m.bed && z < cA ? 0.9 : 0.8), W * m.roofK * (halfW(z) / W) ** 0.5, k), ye = yt - lerp(0.035, 0.055, k);
+    return [[0, yb, z], [w * 0.87, yb, z], [w, yb + (ys - yb) * 0.48, z], [w * 0.965, ys, z], [we, Math.max(ye, ys + 0.01), z], [we * (m.bed && z < cA ? 0.9 : 0.52), yt - 0.012, z], [0, yt, z]];
+  });
+  // normais suaves
+  const nrm = ring.map((r) => r.map(() => [0, 0, 0]));
+  for (let i = 0; i < ring.length - 1; i++) for (let j = 0; j < NR - 1; j++) {
+    const A = ring[i][j], B = ring[i + 1][j], Dq = ring[i][j + 1];
+    const ux = Dq[0] - A[0], uy = Dq[1] - A[1], uz = Dq[2] - A[2], vx = B[0] - A[0], vy = B[1] - A[1], vz = B[2] - A[2];
+    const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+    for (const q of [nrm[i][j], nrm[i + 1][j], nrm[i + 1][j + 1], nrm[i][j + 1]]) { q[0] += n[0]; q[1] += n[1]; q[2] += n[2]; }
+  }
+  for (const r of nrm) r.forEach((n, j) => {
+    if (j === 0 || j === NR - 1) n[0] = 0;
+    const l = Math.hypot(n[0], n[1], n[2]) || 1; n[0] /= l; n[1] /= l; n[2] /= l;
+  });
+
+  const put = (g, p, n, col, sx) => g._v(p[0] * sx, p[1], p[2], n[0] * sx, n[1], n[2], col, -1, -1);
+  const doorWhite = C(0xf2f2ee);
+  // material de cada faixa da superfície
+  const bandMat = (j, zm) => {
+    if (j === 0) return [D, TRIM];
+    if (j === 1 && m.clad) return [D, TRIM];
+    if (j <= 2) return opts.police && zm > cB && zm < cD ? [D, doorWhite] : [P, WHITE];
+    // colunas escuras (teto "flutuante") e vidros laterais
+    if (j === 3) return zm > cA && zm < cD ? (zm > gA && zm < gD && Math.abs(zm - bp) > 0.06 ? [D, GLASS] : [D, TRIM]) : [P, WHITE];
+    if ((zm > cA && zm < cB) || (zm > cC && zm < cD)) return [D, GLASS];
+    if (m.bed && zm < cA && j === 5) return [D, BED];
+    return [P, WHITE];
+  };
+  for (let i = 0; i < ring.length - 1; i++) {
+    const zm = (st[i] + st[i + 1]) / 2;
+    for (let j = 0; j < NR - 1; j++) {
+      const [g, col] = bandMat(j, zm);
+      const A = ring[i][j], B = ring[i + 1][j], Cc = ring[i + 1][j + 1], Dq = ring[i][j + 1];
+      const nA = nrm[i][j], nB = nrm[i + 1][j], nC = nrm[i + 1][j + 1], nD = nrm[i][j + 1];
+      // lado direito (A, D, C, B) e espelho (A, B, C, D)
+      put(g, A, nA, col, 1); put(g, Dq, nD, col, 1); put(g, Cc, nC, col, 1);
+      put(g, A, nA, col, 1); put(g, Cc, nC, col, 1); put(g, B, nB, col, 1);
+      put(g, A, nA, col, -1); put(g, B, nB, col, -1); put(g, Cc, nC, col, -1);
+      put(g, A, nA, col, -1); put(g, Cc, nC, col, -1); put(g, Dq, nD, col, -1);
     }
   }
-  if (m.spoiler) {
-    const sy = m.deck + m.spoiler;
-    if (m.wing) {
-      D.box(-w * 0.7, m.deck - 0.05, zr + 0.12, -w * 0.62, sy, zr + 0.3, TRIM);
-      D.box(w * 0.62, m.deck - 0.05, zr + 0.12, w * 0.7, sy, zr + 0.3, TRIM);
-      P.box(-w * 1.0, sy, zr + 0.02, w * 1.0, sy + 0.05, zr + 0.4, WHITE, { bottom: true });
-    } else {
-      P.box(-w * 0.9, m.deck - 0.02, zr + 0.01, w * 0.9, sy, zr + 0.2, WHITE);
+  // frente e traseira (painéis planos onde ficam faróis, grade e lanternas)
+  for (const [ri, dz] of [[0, -1], [ring.length - 1, 1]]) {
+    const r = ring[ri], cy = (r[0][1] + r[NR - 1][1]) / 2, c = [0, cy, r[0][2]];
+    for (let j = 0; j < NR - 1; j++) for (const sx of [1, -1]) {
+      triDir(P, c, [r[j][0] * sx, r[j][1], r[j][2]], [r[j + 1][0] * sx, r[j + 1][1], r[j + 1][2]], WHITE, 0, 0, dz);
     }
+  }
+
+  // ---------- frente ----------
+  const wN = halfW(zf), ybN = botY(zf), ysN = beltY(zf), zN = zf + 0.012;
+  const fq = (x0, y0, x1, y1, col, zz) => { for (const sx of [1, -1]) quadDir(D, [x0 * sx, y0, zz], [x1 * sx, y0, zz], [x1 * sx, y1, zz], [x0 * sx, y1, zz], col, 0, 0, 1); };
+  fq(wN * 0.5, ysN - 0.17, wN * 0.985, ysN - 0.06, TRIM, zN);           // carcaça do farol
+  fq(wN * 0.54, ysN - 0.15, wN * 0.96, ysN - 0.085, HEAD, zN + 0.006);   // farol fino
+  fq(wN * 0.5, ysN - 0.05, wN * 0.985, ysN - 0.025, DRL, zN + 0.006);    // luz diurna
+  quadDir(D, [-wN * 0.46, ybN + 0.07, zN], [wN * 0.46, ybN + 0.07, zN], [wN * 0.4, ysN - 0.1, zN], [-wN * 0.4, ysN - 0.1, zN], TRIM, 0, 0, 1); // grade
+  fq(wN * 0.56, ybN + 0.06, wN * 0.92, ybN + 0.17, TRIM, zN);            // entradas de ar
+  if (m.splitter) D.box(-wN * 1.0, ybN - 0.03, zf - 0.22, wN * 1.0, ybN + 0.025, zf + 0.07, TRIM, { bottom: true });
+  // ---------- traseira ----------
+  const wT = halfW(zr), ybT = botY(zr), ysT = beltY(zr), zT = zr - 0.012;
+  const rq = (x0, y0, x1, y1, col, zz) => { for (const sx of [1, -1]) quadDir(D, [x0 * sx, y0, zz], [x1 * sx, y0, zz], [x1 * sx, y1, zz], [x0 * sx, y1, zz], col, 0, 0, -1); };
+  rq(wT * 0.5, ysT - 0.16, wT * 0.985, ysT - 0.05, TAIL, zT);
+  if (m.bar) quadDir(D, [-wT * 0.5, ysT - 0.125, zT], [wT * 0.5, ysT - 0.125, zT], [wT * 0.5, ysT - 0.085, zT], [-wT * 0.5, ysT - 0.085, zT], TAIL, 0, 0, -1);
+  quadDir(D, [-0.26, ybT + 0.2, zT], [0.26, ybT + 0.2, zT], [0.26, ybT + 0.33, zT], [-0.26, ybT + 0.33, zT], PLATE, 0, 0, -1);
+  quadDir(D, [-wT * 0.8, ybT + 0.0, zT], [wT * 0.8, ybT + 0.0, zT], [wT * 0.74, ybT + 0.15, zT], [-wT * 0.74, ybT + 0.15, zT], TRIM, 0, 0, -1); // difusor
+  for (const sx of [1, -1]) D.box(sx * wT * 0.5 - 0.07, ybT + 0.03, zr - 0.06, sx * wT * 0.5 + 0.07, ybT + 0.11, zr + 0.05, C(0x6b7078));
+
+  // ---------- faixas, retrovisores, aerofólio ----------
+  if (m.stripes != null) {
+    const sc = C(m.stripes);
+    for (let i = 0; i < ring.length - 1; i++) {
+      const zm = (st[i] + st[i + 1]) / 2;
+      if ((zm > cA && zm < cB) || (zm > cC && zm < cD)) continue;
+      const y0 = topY(st[i]) + 0.004, y1 = topY(st[i + 1]) + 0.004;
+      for (const [xa, xb] of [[0.09, 0.3], [-0.3, -0.09]]) D.up([xa, y0, st[i]], [xb, y0, st[i]], [xb, y1, st[i + 1]], [xa, y1, st[i + 1]], sc);
+    }
+  }
+  {
+    const mz = cD - 0.12, my = beltY(mz) + 0.07, mw = halfW(mz);
+    for (const sx of [1, -1]) {
+      const x0 = sx * (mw - 0.04), x1 = sx * (mw + 0.15);
+      P.box(Math.min(x0, x1), my - 0.03, mz - 0.045, Math.max(x0, x1), my + 0.055, mz + 0.045, WHITE, { bottom: true });
+      quadDir(D, [sx * (mw + 0.02), my - 0.02, mz - 0.047], [sx * (mw + 0.14), my - 0.02, mz - 0.047], [sx * (mw + 0.14), my + 0.045, mz - 0.047], [sx * (mw + 0.02), my + 0.045, mz - 0.047], GLASS, 0, 0, -1);
+    }
+  }
+  if (m.lip) {
+    const sy = topY(zr + 0.2);
+    P.box(-wT * 0.84, sy - 0.03, zr + 0.05, wT * 0.84, sy + m.lip * 0.7, zr + 0.2, WHITE);
+  }
+  if (m.wing) {
+    const sy = m.deckH + m.wing;
+    for (const sx of [1, -1]) D.box(sx * W * 0.62 - 0.035, m.deckH - 0.06, zr + 0.2, sx * W * 0.62 + 0.035, sy, zr + 0.36, TRIM);
+    P.box(-W * 0.98, sy, zr + 0.06, W * 0.98, sy + 0.045, zr + 0.46, WHITE, { bottom: true });
+    for (const sx of [1, -1]) P.box(Math.min(sx * W * 0.98, sx * W), sy - 0.1, zr + 0.06, Math.max(sx * W * 0.98, sx * W), sy + 0.1, zr + 0.46, WHITE, { bottom: true });
   }
   if (m.intakes) {
-    D.box(w - 0.02, y0 + 0.2, cr0 - 0.1, w + 0.015, m.belt - 0.08, cr0 + 0.55, TRIM);
-    D.box(-w - 0.015, y0 + 0.2, cr0 - 0.1, -w + 0.02, m.belt - 0.08, cr0 + 0.55, TRIM);
+    const iz = cA - 0.25;
+    for (const sx of [1, -1]) quadDir(D, [sx * (halfW(iz) + 0.012), botY(iz) + 0.22, iz - 0.3], [sx * (halfW(iz) + 0.012), botY(iz) + 0.22, iz + 0.25], [sx * (halfW(iz) + 0.012), beltY(iz) - 0.12, iz + 0.12], [sx * (halfW(iz) + 0.012), beltY(iz) - 0.12, iz - 0.3], TRIM, sx, 0, 0);
   }
   if (m.rails) {
-    D.box(wT - 0.12, m.roof, cr1 + 0.15, wT - 0.05, m.roof + 0.07, cf1 - 0.15, TRIM);
-    D.box(-wT + 0.05, m.roof, cr1 + 0.15, -wT + 0.12, m.roof + 0.07, cf1 - 0.15, TRIM);
-  }
-  if (m.bed) {
-    // caçamba: piso escuro rebaixado visualmente
-    D.quad([w - 0.12, m.deck + 0.012, zr + 0.14], [-w + 0.12, m.deck + 0.012, zr + 0.14], [-w + 0.12, m.belt + 0.012, cr0 - 0.12], [w - 0.12, m.belt + 0.012, cr0 - 0.12], C(0x0c0d0f));
-    P.box(-w * 0.9, m.belt, cr0 - 0.1, w * 0.9, m.belt + 0.3, cr0 + 0.02, WHITE);
+    const rw = W * m.roofK;
+    for (const sx of [1, -1]) D.box(sx * rw * 0.9 - 0.03, m.roofH - 0.01, cB + 0.1, sx * rw * 0.9 + 0.03, m.roofH + 0.06, cC - 0.1, TRIM);
   }
   if (opts.police) {
-    D.box(-0.5, m.roof, midT - 0.14, -0.04, m.roof + 0.13, midT + 0.14, C(0xd61f1f));
-    D.box(0.04, m.roof, midT - 0.14, 0.5, m.roof + 0.13, midT + 0.14, C(0x1f4fd6));
-    D.box(-0.04, m.roof, midT - 0.1, 0.04, m.roof + 0.1, midT + 0.1, CHROME);
-    // portas brancas e faixa
-    D.box(w + 0.006, y0 + 0.2, cr0 + 0.2, w + 0.02, m.belt - 0.03, cf0 - 0.1, C(0xf2f2ee));
-    D.box(-w - 0.02, y0 + 0.2, cr0 + 0.2, -w - 0.006, m.belt - 0.03, cf0 - 0.1, C(0xf2f2ee));
-    D.box(-w * 0.7, y0 + 0.24, zf + 0.03, w * 0.7, y0 + 0.5, zf + 0.12, TRIM); // quebra-mato
+    const pz = (cB + cC) / 2, py = m.roofH + 0.01;
+    D.box(-0.52, py, pz - 0.15, -0.04, py + 0.13, pz + 0.15, C(0xd61f1f));
+    D.box(0.04, py, pz - 0.15, 0.52, py + 0.13, pz + 0.15, C(0x1f4fd6));
+    D.box(-0.04, py, pz - 0.11, 0.04, py + 0.1, pz + 0.11, C(0xaab2ba));
+    D.box(-wN * 0.72, ybN + 0.05, zf + 0.02, wN * 0.72, ybN + 0.34, zf + 0.1, TRIM); // quebra-mato
   }
 
-  const wheelPos = [
-    [w - 0.13, m.wr, m.wb / 2], [-(w - 0.13), m.wr, m.wb / 2],
-    [w - 0.13, m.wr, -m.wb / 2], [-(w - 0.13), m.wr, -m.wb / 2],
-  ];
-  const WW = model === 'super' || model === 'muscle' ? 0.3 : 0.25;
-  if (opts.withWheels) for (const [x, y, z] of wheelPos) wheelGeo(D, x, y, z, m.wr, WW, Math.sign(x));
+  // ---------- caixas de roda e rodas ----------
+  const WW = m.wide ? 0.31 : 0.26;
+  const wheelPos = [];
+  for (const wz of [m.wb / 2, -m.wb / 2]) for (const sx of [1, -1]) {
+    const bw = halfW(wz), ax = sx * (bw + 0.014), ra = m.wr + 0.055, yb = botY(wz) + 0.01;
+    const arch = C(0x08090a);
+    for (let k = 0; k < 12; k++) {
+      const a0 = -0.5 + (k / 12) * (Math.PI + 1.0), a1 = -0.5 + ((k + 1) / 12) * (Math.PI + 1.0);
+      triDir(D, [ax, Math.max(yb, m.wr), wz], [ax, Math.max(yb, m.wr + Math.sin(a0) * ra), wz + Math.cos(a0) * ra], [ax, Math.max(yb, m.wr + Math.sin(a1) * ra), wz + Math.cos(a1) * ra], arch, sx, 0, 0);
+      if (m.clad) quadDir(D, [ax + sx * 0.006, Math.max(yb, m.wr + Math.sin(a0) * ra), wz + Math.cos(a0) * ra], [ax + sx * 0.006, Math.max(yb, m.wr + Math.sin(a0) * (ra + 0.07)), wz + Math.cos(a0) * (ra + 0.07)],
+        [ax + sx * 0.006, Math.max(yb, m.wr + Math.sin(a1) * (ra + 0.07)), wz + Math.cos(a1) * (ra + 0.07)], [ax + sx * 0.006, Math.max(yb, m.wr + Math.sin(a1) * ra), wz + Math.cos(a1) * ra], TRIM, sx, 0, 0);
+    }
+    wheelPos.push([sx * (bw + 0.05 - WW / 2), m.wr, wz]);
+  }
+  if (opts.withWheels) for (const [x, y, z] of wheelPos) wheelGeo(D, x, y, z, m.wr, WW, Math.sign(x), m, 12);
   const wg = new Geo();
-  wheelGeo(wg, 0, 0, 0, m.wr, WW, 1);
+  wheelGeo(wg, 0, 0, 0, m.wr, WW, 1, m, 16);
   const out = { paint: P.build(), detail: D.build(), wheel: wg.build(), wheelPos, dims: m, model };
   _cache.set(key, out);
   return out;
 }
 
-// material compartilhado para detalhes
+// material compartilhado para detalhes (vidros refletem o céu)
 export const detailMat = glossy(new THREE.MeshLambertMaterial({ vertexColors: true }), 'detail');

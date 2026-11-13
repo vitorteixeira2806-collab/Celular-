@@ -113,7 +113,7 @@ export class Fleet {
         this.glow(v.x + sn * (hl + 0.05) + cs * hw * sx, hy, v.z + cs * (hl + 0.05) - sn * hw * sx, 0.42, 0xfff0c8, night);
         this.glow(v.x - sn * (hl + 0.05) + cs * hw * sx, ty, v.z - cs * (hl + 0.05) - sn * hw * sx, braking ? 0.32 : 0.2, 0xff2a1a, braking ? 1 : 0.7 * night);
       }
-      this.pool(v.x + sn * (hl + 6.5), v.y, v.z + cs * (hl + 6.5), v.yaw, 8, 4.2, 0.32 * night);
+      this.pool(v.x + sn * (hl + 6.5), v.y, v.z + cs * (hl + 6.5), v.yaw, 8, 4.2, 0.2 * night);
     } else if (braking) {
       for (const sx of [-1, 1]) this.glow(v.x - sn * (hl + 0.05) + cs * hw * sx, ty, v.z - cs * (hl + 0.05) - sn * hw * sx, 0.24, 0xff2a1a, 0.8);
     }

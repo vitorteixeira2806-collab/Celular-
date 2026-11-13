@@ -76,8 +76,7 @@ export class CarView {
         if (el > 0.34) { px = o[i] + (ex / el) * 0.34; pz = o[i + 2] + (ez / el) * 0.34; }
         arr[i] = px; arr[i + 2] = pz; arr[i + 1] = Math.max(o[i + 1] - 0.12, py);
       }
-      pos.needsUpdate = true;
-      geos[gi].computeVertexNormals();
+      pos.needsUpdate = true; // mantém as normais suaves originais
     }
     this.dirty = true;
   }
@@ -86,7 +85,6 @@ export class CarView {
     [this.paintGeo, this.detailGeo].forEach((g, gi) => {
       g.attributes.position.array.set(this.orig[gi]);
       g.attributes.position.needsUpdate = true;
-      g.computeVertexNormals();
     });
     this.dirty = false;
   }
